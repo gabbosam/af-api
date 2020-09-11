@@ -48,7 +48,7 @@ def lambda_handler(event, context):
         log.debug("authorization: " + json.dumps(authorization_header))
 
         # Get the username|password hash from the authorization header
-        username_password_hash = authorization_header['authorization'].split()[1]
+        username_password_hash = authorization_header['authorization']
         log.debug("username_password_hash: " + username_password_hash)
 
         # Decode username_password_hash and get username
