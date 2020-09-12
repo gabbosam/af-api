@@ -23,6 +23,8 @@ log_level = os.environ['LOG_LEVEL']
 log = logging.getLogger(__name__)
 logging.getLogger().setLevel(log_level)
 
+class InsufficientPermission(Exception):
+    pass
 
 def lambda_handler(event, context):
     log.debug("Event: " + json.dumps(event))
@@ -51,14 +53,24 @@ def lambda_handler(event, context):
         log.debug("JWT Token: {}".format(token))
         try:
             jwt_token = jwt.decode(token, token_key, algorithm=['HS256'])
-            policy.allowMethod(event['requestContext']['httpMethod'], event['path'])
+            roleHeader = {k.lower(): v for k, v in event['headers'].items() if k.lower() == 'role'}
+            if roleHeader:
+                allow = roleHeader["role"] == jwt_token["role"]
+            else:
+                allow = True
+            if allow:
+                policy.allowMethod(event['requestContext']['httpMethod'], event['path'])
+            else:
+                raise InsufficientPermission()
         except jwt.ExpiredSignatureError as ex:
             policy.denyMethod(event['requestContext']['httpMethod'], event['path'])
             log.info("Token expired")
-            
         except jwt.InvalidSignatureError as ex:
             policy.denyMethod(event['requestContext']['httpMethod'], event['path'])        
             log.info("Invalid signature")
+        except InsufficientPermission as ex:
+            policy.denyMethod(event['requestContext']['httpMethod'], event['path'])
+            log.info("Insufficient permission")
                 
         authResponse = policy.build()
         log.debug("authResponse: " + json.dumps(authResponse))
