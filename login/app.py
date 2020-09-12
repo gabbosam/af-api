@@ -22,7 +22,8 @@ def lambda_function(event, context):
 
     username = params["username"]
     password = params["password"]
-    salt = os.getenv("HK")
+    token_key = event["stageVariables"]["HK"]
+    salt = os.getenv("SALT")
 
     item = table.get_item(ConsistentRead=True, Key={"login": username})
     if item.get('Item') is not None:
@@ -30,7 +31,7 @@ def lambda_function(event, context):
         log.debug("ddb_password:" + json.dumps(ddb_password))
 
         if ddb_password is not None:
-            str2hash = "{}|{}|{}".format(username, password, os.getenv("HK"))
+            str2hash = "{}|{}|{}".format(username, password, salt)
             result_hash = hashlib.md5(str2hash.encode()).hexdigest()
             if result_hash == ddb_password:
                 issued_at = datetime.today()
@@ -45,7 +46,7 @@ def lambda_function(event, context):
                     "iat": issued_at.timestamp(),
                     "exp": exp_at.timestamp()
                 }
-                jwt_token = jwt.encode(payload, salt, algorithm='HS256').decode()
+                jwt_token = jwt.encode(payload, token_key, algorithm='HS256').decode()
                 log.debug("JWT token:" + jwt_token)
             else:
                 return {

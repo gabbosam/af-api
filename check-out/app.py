@@ -19,19 +19,13 @@ logging.getLogger().setLevel(log_level)
 def lambda_function(event, context):
     log.debug("Event: " + json.dumps(event))
     params = json.loads(event["body"])
-    salt = os.getenv("HK")
+    token_key = event["stageVariables"]["HK"]
 
     authorizationHeader = {k.lower(): v for k, v in event['headers'].items() if k.lower() == 'authorization'}
     token = authorizationHeader["authorization"].split()[1]
     log.debug("JWT Token: {}".format(token))
-    try:
-        jwt_token = jwt.decode(token, salt, algorithm=['HS256'])
-    except jwt.ExpiredSignatureError as ex:
-        return {
-            "statusCode": 401,
-            "body": "Token expired!"
-        }
-        
+
+    jwt_token = jwt.decode(token, token_key, algorithm=['HS256'])
     checkout_date = "{} {}".format(params["checkoutDay"], params["checkoutTime"])
     access_hash = jwt_token["access_hash"]
     try:
@@ -56,7 +50,7 @@ def lambda_function(event, context):
                 })
                 
                 del jwt_token["access_hash"]
-                token = jwt.encode(jwt_token, salt, algorithm='HS256').decode()
+                token = jwt.encode(jwt_token, token_key, algorithm='HS256').decode()
             else:
                 return {
                     "statusCode": 404,
