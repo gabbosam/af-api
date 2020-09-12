@@ -13,6 +13,7 @@ import logging
 import base64
 import hashlib
 import boto3
+import jwt
 
 
 # Static code used for DynamoDB connection and logging
@@ -26,7 +27,7 @@ logging.getLogger().setLevel(log_level)
 def lambda_handler(event, context):
     log.debug("Event: " + json.dumps(event))
 
-    # Ensure the incoming Lambda event is for a request authorizer
+    # Ensure the incoming Lambda event is for a token authorizer
     if event['type'] != 'REQUEST':
         raise Exception('Unauthorized')
 
@@ -44,46 +45,28 @@ def lambda_handler(event, context):
         policy.stage = apiGatewayArnTmp[1]
 
         # Get authorization header in lowercase
-        authorization_header = {k.lower(): v for k, v in event['headers'].items() if k.lower() == 'authorization'}
-        log.debug("authorization: " + json.dumps(authorization_header))
-
-        # Get the username|password hash from the authorization header
-        username_password_hash = authorization_header['authorization']
-        log.debug("username_password_hash: " + username_password_hash)
-
-        # Decode username_password_hash and get username
-        username = base64.standard_b64decode(username_password_hash).split('|')[0]
-        log.debug("username: " + username)
-
-        # Get the password from DynamoDB for the username
-        item = table.get_item(ConsistentRead=True, Key={"login": username})
-        if item.get('Item') is not None:
-            log.debug("item: " + json.dumps(item))
-            ddb_password = item.get('Item').get('password')
-            log.debug("ddb_password:" + json.dumps(ddb_password))
-
-            if ddb_password is not None:
-                str2hash = username_password_hash + os.getenv("HK")
-                result_hash = hashlib.md5(str2hash.encode()).hexdigest()
-                if result_hash == ddb_password:
-                    policy.allowMethod(event['requestContext']['httpMethod'], event['path'])
-                    log.info("password match for: " + username)
-                else:
-                    policy.denyMethod(event['requestContext']['httpMethod'], event['path'])
-                    log.info("password does not match for: " + username)
-            else:
-                log.info("No password found for username:" + username)
-                policy.denyMethod(event['requestContext']['httpMethod'], event['path'])
-        else:
-            log.info("Did not find username: " + username)
+        authorizationHeader = {k.lower(): v for k, v in event['headers'].items() if k.lower() == 'authorization'}
+        token = authorizationHeader["authorization"].split()[1]
+        token_key = event["stageVariables"]["HK"]
+        log.debug("JWT Token: {}".format(token))
+        try:
+            jwt_token = jwt.decode(token, token_key, algorithm=['HS256'])
+            policy.allowMethod(event['requestContext']['httpMethod'], event['path'])
+        except jwt.ExpiredSignatureError as ex:
             policy.denyMethod(event['requestContext']['httpMethod'], event['path'])
-
-        # Finally, build the policy
+            log.info("Token expired")
+            
+        except jwt.InvalidSignatureError as ex:
+            policy.denyMethod(event['requestContext']['httpMethod'], event['path'])        
+            log.info("Invalid signature")
+                
         authResponse = policy.build()
         log.debug("authResponse: " + json.dumps(authResponse))
 
         return authResponse
     except Exception:
+        import traceback
+        traceback.print_exc()
         raise Exception('Unauthorized')
 
 
