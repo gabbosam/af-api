@@ -34,7 +34,7 @@ def lambda_function(event, context):
             result_hash = hashlib.md5(str2hash.encode()).hexdigest()
             if result_hash == ddb_password:
                 issued_at = datetime.today()
-                exp_at = issued_at + timedelta(minutes=30)
+                exp_at = issued_at + timedelta(minutes=int(os.getenv("TOKEN_DURATION")))
                 payload = {
                     "name": "{} {}".format(item.get('Item').get('name'), item.get('Item').get('surname')),
                     "firstname": str(item.get('Item').get('name')),
@@ -50,14 +50,15 @@ def lambda_function(event, context):
             else:
                 return {
                     "statusCode": 403,
-                    "body": {
+                    "body": json.dumps({
                         "message": "Username and password doesn't match!"
-                    }
+                    })
                 }
     
     return {
         "statusCode": 200,
         "body": json.dumps({
+            "message": "Login successful",
             "token": jwt_token
         })
     }
