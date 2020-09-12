@@ -1,6 +1,7 @@
 import os
 import re
 import json
+from datetime import datetime, timedelta
 import logging
 import base64
 import hashlib
@@ -32,12 +33,17 @@ def lambda_function(event, context):
             str2hash = "{}|{}|{}".format(username, password, os.getenv("HK"))
             result_hash = hashlib.md5(str2hash.encode()).hexdigest()
             if result_hash == ddb_password:
+                issued_at = datetime.today()
+                exp_at = issued_at + timedelta(minutes=30)
                 payload = {
-                    "name": str(item.get('Item').get('name')),
+                    "name": "{} {}".format(item.get('Item').get('name'), item.get('Item').get('surname')),
+                    "firstname": str(item.get('Item').get('name')),
                     "surname": str(item.get('Item').get('surname')),
                     "role": str(item.get('Item').get('role')),
                     "code": str(item.get('Item').get('code')),
-                    "login": str(item.get('Item').get('login'))
+                    "sub": str(item.get('Item').get('login')),
+                    "iat": issued_at.timestamp(),
+                    "exp": exp_at.timestamp()
                 }
                 jwt_token = jwt.encode(payload, salt, algorithm='HS256').decode()
                 log.debug("JWT token:" + jwt_token)
