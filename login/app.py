@@ -1,5 +1,6 @@
 import os
 import re
+import uuid
 import json
 from datetime import datetime, timedelta
 import logging
@@ -12,6 +13,7 @@ import jwt
 # Static code used for DynamoDB connection and logging
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ['TABLE_NAME'])
+table_tokens = dynamodb.Table("tokens")
 log_level = os.environ['LOG_LEVEL']
 log = logging.getLogger(__name__)
 logging.getLogger().setLevel(log_level)
@@ -24,6 +26,7 @@ def get_SALT():
     return secret_string["raw"]
 
 def lambda_function(event, context):
+
     log.debug("Event: " + json.dumps(event))
     params = json.loads(event["body"])
 
@@ -54,15 +57,27 @@ def lambda_function(event, context):
                     "exp": exp_at.timestamp()
                 }
                 jwt_token = jwt.encode(payload, token_key, algorithm='HS256').decode()
+                log.debug("JWT token:" + jwt_token)
+
+                refresh_exp_at = issued_at + timedelta(days=5)
+                token_uuid = str(uuid.uuid4())
                 refresh_token = jwt.encode(
                     {
                         "sub": "af-api",
                         "iat": issued_at.timestamp(),
-                        "exp": exp_at.timestamp()
+                        "exp": exp_at.timestamp(),
+                        "uuid": token_uuid
                     }, 
-                    token_key, algorithm='HS256').decode()
-                    
-                log.debug("JWT token:" + jwt_token)
+                    token_key, algorithm='HS256'
+                ).decode()
+                log.debug("REFRESH JWT token:" + refresh_token)
+                with table_tokens.batch_writer() as batch:
+                    batch.put_item(
+                        {
+                            "uuid": token_uuid,
+                            "token": jwt_token
+                        }
+                    )
             else:
                 return {
                     "statusCode": 403,
@@ -75,13 +90,13 @@ def lambda_function(event, context):
         "statusCode": 200,
         "body": json.dumps({
             "message": "Login successful",
-            "token": jwt_token
+            "token": jwt_token,
+            "refresh_token": refresh_token
         }),
         "headers": {
             "Access-Control-Allow-Origin": "*", 
             "Access-Control-Allow-Credentials": True, 
             "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Set-Cookie": "JWT_TOKEN={}; Path=/; HttpOnly; Secure".format(refresh_token)
+            "Access-Control-Allow-Methods": "POST, OPTIONS"
         }
     }

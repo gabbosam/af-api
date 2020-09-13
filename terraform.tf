@@ -24,7 +24,24 @@ resource "aws_lambda_function" "login" {
     variables = {
       LOG_LEVEL      = "DEBUG"
       TABLE_NAME     = "users"
-      TOKEN_DURATION = 180
+      TOKEN_DURATION = var.token_expiration
+    }
+  }
+}
+
+resource "aws_lambda_function" "refresh-token" {
+  function_name    = "refresh-token"
+  role             = "arn:aws:iam::374237882048:role/lambda-role"
+  handler          = "app.lambda_function"
+  filename         = "refresh-token/code.zip"
+  source_code_hash = filebase64sha256("refresh-token/code.zip")
+  timeout          = 30
+  runtime          = "python3.8"
+  environment {
+    variables = {
+      LOG_LEVEL      = "DEBUG"
+      TABLE_NAME     = "users"
+      TOKEN_DURATION = var.token_expiration
     }
   }
 }
@@ -177,6 +194,87 @@ resource "aws_api_gateway_integration" "login_integration" {
   ]
 }
 
+resource "aws_api_gateway_method" "login_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.login.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+  depends_on = [
+    aws_api_gateway_resource.login
+  ]
+}
+
+resource "aws_api_gateway_integration" "login_cors_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.login.id
+  http_method = aws_api_gateway_method.login_cors.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = jsonencode(
+      {
+        statusCode = 200
+      }
+    )
+  }
+}
+
+resource "aws_api_gateway_method_response" "login_cors_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.login.id
+  http_method = aws_api_gateway_method.login_cors.http_method
+  status_code = "200"
+  response_models = {
+    "application/json" = "Empty"
+  }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+  }
+}
+
+resource "aws_api_gateway_resource" "refresh_token" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
+  path_part   = "refresh-token"
+  depends_on = [
+    aws_api_gateway_rest_api.api_gw
+  ]
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_api_gateway_method" "refresh_token_method" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.refresh_token.id
+  http_method   = "POST"
+  authorization = "NONE"
+  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  api_key_required = true
+  depends_on = [
+    aws_api_gateway_resource.refresh_token
+  ]
+}
+
+resource "aws_api_gateway_integration" "refresh_token_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.refresh_token.id
+  http_method = aws_api_gateway_method.refresh_token_method.http_method
+  # integration_http_method for lambda integration MUST BE POST
+  # see: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_integration#integration_http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.refresh-token.invoke_arn
+  content_handling        = "CONVERT_TO_TEXT"
+  depends_on = [
+    aws_api_gateway_resource.refresh_token,
+    aws_api_gateway_method.refresh_token_method
+  ]
+}
+
+
 resource "aws_api_gateway_resource" "check_in" {
   rest_api_id = aws_api_gateway_rest_api.api_gw.id
   parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
@@ -216,7 +314,6 @@ resource "aws_api_gateway_integration" "check_in_integration" {
     aws_api_gateway_method.check_in_method
   ]
 }
-
 
 resource "aws_api_gateway_resource" "check_out" {
   rest_api_id = aws_api_gateway_rest_api.api_gw.id
@@ -322,6 +419,19 @@ resource "aws_lambda_permission" "login" {
   # More: http://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-control-access-using-iam-policies-to-invoke-api.html
   source_arn = format(
     "%s/*/POST/login",
+    aws_api_gateway_rest_api.api_gw.execution_arn
+  )
+}
+
+resource "aws_lambda_permission" "refresh_token" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = "refresh-token"
+  principal     = "apigateway.amazonaws.com"
+
+  # More: http://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-control-access-using-iam-policies-to-invoke-api.html
+  source_arn = format(
+    "%s/*/POST/refresh-token",
     aws_api_gateway_rest_api.api_gw.execution_arn
   )
 }

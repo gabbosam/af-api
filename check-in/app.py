@@ -76,5 +76,11 @@ def lambda_function(event, context):
         "body": json.dumps({
             "message":"Checked in at {}".format(checkin_date),
             "token": token
-        })
+        }),
+        "headers": {
+            "Access-Control-Allow-Origin": "*", 
+            "Access-Control-Allow-Credentials": True, 
+            "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+            "Access-Control-Allow-Methods": "POST, OPTIONS"
+        }
     }
