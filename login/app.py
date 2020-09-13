@@ -16,6 +16,13 @@ log_level = os.environ['LOG_LEVEL']
 log = logging.getLogger(__name__)
 logging.getLogger().setLevel(log_level)
 
+def get_SALT():
+    response = boto3.client("secretsmanager").get_secret_value(
+        SecretId="SALT"
+    )
+    secret_string = json.loads(response["SecretString"])
+    return secret_string["raw"]
+
 def lambda_function(event, context):
     log.debug("Event: " + json.dumps(event))
     params = json.loads(event["body"])
@@ -23,7 +30,7 @@ def lambda_function(event, context):
     username = params["username"]
     password = params["password"]
     token_key = event["stageVariables"]["HK"]
-    salt = os.getenv("SALT")
+    salt = get_SALT()
 
     item = table.get_item(ConsistentRead=True, Key={"login": username})
     if item.get('Item') is not None:
@@ -47,6 +54,14 @@ def lambda_function(event, context):
                     "exp": exp_at.timestamp()
                 }
                 jwt_token = jwt.encode(payload, token_key, algorithm='HS256').decode()
+                refresh_token = jwt.encode(
+                    {
+                        "sub": "af-api",
+                        "iat": issued_at.timestamp(),
+                        "exp": exp_at.timestamp()
+                    }, 
+                    token_key, algorithm='HS256').decode()
+                    
                 log.debug("JWT token:" + jwt_token)
             else:
                 return {
@@ -61,5 +76,12 @@ def lambda_function(event, context):
         "body": json.dumps({
             "message": "Login successful",
             "token": jwt_token
-        })
+        }),
+        "headers": {
+            "Access-Control-Allow-Origin": "*", 
+            "Access-Control-Allow-Credentials": True, 
+            "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Set-Cookie": "JWT_TOKEN={}; Path=/; HttpOnly; Secure".format(refresh_token)
+        }
     }

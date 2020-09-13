@@ -12,11 +12,19 @@ log_level = os.environ['LOG_LEVEL']
 log = logging.getLogger(__name__)
 logging.getLogger().setLevel(log_level)
 
+def get_SALT():
+    response = boto3.client("secretsmanager").get_secret_value(
+        SecretId="SALT"
+    )
+    secret_string = json.loads(response["SecretString"])
+    return secret_string["raw"]
+
 def lambda_function(event, context):
     log.debug("Event: " + json.dumps(event))
     params = json.loads(event["body"])
 
-    salt = os.getenv("SALT")
+    salt = get_SALT()
+    
     str2hash = "{}|{}|{}".format(params["login"], params["password"], salt)
     result_hash = hashlib.md5(str2hash.encode()).hexdigest()
     params["password"] = result_hash
