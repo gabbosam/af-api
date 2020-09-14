@@ -24,7 +24,7 @@ def lambda_function(event, context):
     params = json.loads(event["body"])
 
     salt = get_SALT()
-    
+
     str2hash = "{}|{}|{}".format(params["login"], params["password"], salt)
     result_hash = hashlib.md5(str2hash.encode()).hexdigest()
     params["password"] = result_hash
@@ -36,6 +36,9 @@ def lambda_function(event, context):
     else:
         code = 1
     params["code"] = str(code)
+    if "tenant" not in params:
+        params["tenant"] = "default"
+        
     try:
         with table.batch_writer() as batch:
             batch.put_item(params)
