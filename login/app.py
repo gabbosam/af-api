@@ -30,6 +30,7 @@ def lambda_function(event, context):
     log.debug("Event: " + json.dumps(event))
     params = json.loads(event["body"])
 
+    headers = {k.lower(): v for k, v in event['headers'].items()}
     username = params["username"]
     password = params["password"]
     token_key = event["stageVariables"]["HK"]
@@ -44,6 +45,7 @@ def lambda_function(event, context):
             str2hash = "{}|{}|{}".format(username, password, salt)
             result_hash = hashlib.md5(str2hash.encode()).hexdigest()
             if result_hash == ddb_password:
+                token_uuid = str(uuid.uuid4())
                 issued_at = datetime.today()
                 exp_at = issued_at + timedelta(minutes=int(os.getenv("TOKEN_DURATION")))
                 payload = {
@@ -54,13 +56,14 @@ def lambda_function(event, context):
                     "code": str(item.get('Item').get('code')),
                     "sub": str(item.get('Item').get('login')),
                     "iat": issued_at.timestamp(),
-                    "exp": exp_at.timestamp()
+                    "exp": exp_at.timestamp(),
+                    "tenant": headers.get("x-tenant", "default"),
+                    "uuid": token_uuid
                 }
                 jwt_token = jwt.encode(payload, token_key, algorithm='HS256').decode()
                 log.debug("JWT token:" + jwt_token)
 
                 refresh_exp_at = issued_at + timedelta(days=5)
-                token_uuid = str(uuid.uuid4())
                 refresh_token = jwt.encode(
                     {
                         "sub": "af-api",
@@ -96,7 +99,7 @@ def lambda_function(event, context):
         "headers": {
             "Access-Control-Allow-Origin": "*", 
             "Access-Control-Allow-Credentials": True, 
-            "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+            "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant",
             "Access-Control-Allow-Methods": "POST, OPTIONS"
         }
     }

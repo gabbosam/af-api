@@ -26,7 +26,7 @@ logging.getLogger().setLevel(log_level)
 class InsufficientPermission(Exception):
     pass
 
-def lambda_handler(event, context):
+def lambda_function(event, context):
     log.debug("Event: " + json.dumps(event))
 
     # Ensure the incoming Lambda event is for a token authorizer

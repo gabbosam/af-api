@@ -12,6 +12,7 @@ import jwt
 # Static code used for DynamoDB connection and logging
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(os.environ['TABLE_NAME'])
+table_tokens = dynamodb.Table("tokens")
 log_level = os.environ['LOG_LEVEL']
 log = logging.getLogger(__name__)
 logging.getLogger().setLevel(log_level)
@@ -46,11 +47,21 @@ def lambda_function(event, context):
                     "bodyTemp": "n/a",
                     "checkoutDay": params["checkoutDay"],
                     "checkoutDate": checkout_date,
-                    "checkoutTime": params["checkoutTime"]
+                    "checkoutTime": params["checkoutTime"],
+                    "tenant": jwt_token.get("tenant", "default"),
+                    "uuid": jwt_token["uuid"]
                 })
                 
                 del jwt_token["access_hash"]
                 token = jwt.encode(jwt_token, token_key, algorithm='HS256').decode()
+
+            with table_tokens.batch_writer as batch:
+                batch.put_item(
+                    {
+                        "uuid": jwt_token["uuid"],
+                        "token": token
+                    }
+                )
             else:
                 return {
                     "statusCode": 404,
