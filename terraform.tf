@@ -16,8 +16,8 @@ resource "aws_lambda_function" "login" {
   function_name    = "login"
   role             = "arn:aws:iam::374237882048:role/lambda-role"
   handler          = "app.lambda_function"
-  filename         = "login/code.zip"
-  source_code_hash = filebase64sha256("login/code.zip")
+  filename         = "login/build/code.zip"
+  source_code_hash = filebase64sha256("login/build/code.zip")
   timeout          = 30
   runtime          = "python3.8"
   environment {
@@ -33,8 +33,8 @@ resource "aws_lambda_function" "refresh-token" {
   function_name    = "refresh-token"
   role             = "arn:aws:iam::374237882048:role/lambda-role"
   handler          = "app.lambda_function"
-  filename         = "refresh-token/code.zip"
-  source_code_hash = filebase64sha256("refresh-token/code.zip")
+  filename         = "refresh-token/build/code.zip"
+  source_code_hash = filebase64sha256("refresh-token/build/code.zip")
   timeout          = 30
   runtime          = "python3.8"
   environment {
@@ -50,8 +50,8 @@ resource "aws_lambda_function" "check-in" {
   function_name    = "check-in"
   role             = "arn:aws:iam::374237882048:role/lambda-role"
   handler          = "app.lambda_function"
-  filename         = "check-in/code.zip"
-  source_code_hash = filebase64sha256("check-in/code.zip")
+  filename         = "check-in/build/code.zip"
+  source_code_hash = filebase64sha256("check-in/build/code.zip")
   timeout          = 30
   runtime          = "python3.8"
   environment {
@@ -66,8 +66,8 @@ resource "aws_lambda_function" "check-out" {
   function_name    = "check-out"
   role             = "arn:aws:iam::374237882048:role/lambda-role"
   handler          = "app.lambda_function"
-  filename         = "check-out/code.zip"
-  source_code_hash = filebase64sha256("check-out/code.zip")
+  filename         = "check-out/build/code.zip"
+  source_code_hash = filebase64sha256("check-out/build/code.zip")
   timeout          = 30
   runtime          = "python3.8"
   environment {
@@ -82,8 +82,8 @@ resource "aws_lambda_function" "authorizer" {
   function_name    = "authorizer"
   role             = "arn:aws:iam::374237882048:role/lambda-role"
   handler          = "app.lambda_function"
-  filename         = "authorizer/code.zip"
-  source_code_hash = filebase64sha256("authorizer/code.zip")
+  filename         = "authorizer/build/code.zip"
+  source_code_hash = filebase64sha256("authorizer/build/code.zip")
   timeout          = 30
   runtime          = "python3.8"
   environment {
@@ -98,8 +98,8 @@ resource "aws_lambda_function" "add-user" {
   function_name    = "add-user"
   role             = "arn:aws:iam::374237882048:role/lambda-role"
   handler          = "app.lambda_function"
-  filename         = "add-user/code.zip"
-  source_code_hash = filebase64sha256("add-user/code.zip")
+  filename         = "add-user/build/code.zip"
+  source_code_hash = filebase64sha256("add-user/build/code.zip")
   timeout          = 30
   runtime          = "python3.8"
   environment {
@@ -114,8 +114,8 @@ resource "aws_lambda_function" "qrcode-generator" {
   function_name    = "qrcode-generator"
   role             = "arn:aws:iam::374237882048:role/lambda-role"
   handler          = "app.lambda_function"
-  filename         = "qrcode-generator/code.zip"
-  source_code_hash = filebase64sha256("qrcode-generator/code.zip")
+  filename         = "qrcode-generator/build/code.zip"
+  source_code_hash = filebase64sha256("qrcode-generator/build/code.zip")
   timeout          = 30
   runtime          = "python3.8"
   environment {

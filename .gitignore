@@ -130,3 +130,7 @@ dmypy.json
 */code.zip
 
 .terraform
+*/bin
+*/jwt
+*/PyJWT*
+pil.7z
