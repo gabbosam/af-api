@@ -66,7 +66,7 @@ def lambda_function(event, context):
             jwt_token["access_hash"] = access_hash
             token = jwt.encode(jwt_token, token_key, algorithm='HS256').decode()
 
-        with table_tokens.batch_writer as batch:
+        with table_tokens.batch_writer() as batch:
             batch.put_item(
                 {
                     "uuid": jwt_token["uuid"],
