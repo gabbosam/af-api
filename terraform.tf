@@ -110,22 +110,6 @@ resource "aws_lambda_function" "add-user" {
   }
 }
 
-resource "aws_lambda_function" "qrcode-generator" {
-  function_name    = "qrcode-generator"
-  role             = "arn:aws:iam::374237882048:role/lambda-role"
-  handler          = "app.lambda_function"
-  filename         = "qrcode-generator/build/code.zip"
-  source_code_hash = filebase64sha256("qrcode-generator/build/code.zip")
-  timeout          = 30
-  runtime          = "python3.8"
-  environment {
-    variables = {
-      LOG_LEVEL = "DEBUG"
-    }
-  }
-}
-
-
 # API GW
 resource "aws_api_gateway_rest_api" "api_gw" {
   name = "af-api"
