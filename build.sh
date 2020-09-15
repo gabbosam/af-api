@@ -1,4 +1,9 @@
-l=( "add-user" "authorizer" "check-in" "check-out" "login" "qrcode-generator" "refresh-token")
+if [ -n "$1" ]; then
+    l="$1"
+else
+    l=( "add-user" "authorizer" "check-in" "check-out" "login" "qrcode-generator" "refresh-token")
+fi;
+
 OLDPWD="$pwd"
 for d in ${l[@]}
 do

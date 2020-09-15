@@ -2,6 +2,7 @@ import os
 import re
 import json
 from datetime import datetime, timedelta
+from pytz import timezone
 import logging
 import base64
 import hashlib
@@ -17,11 +18,18 @@ table_tokens = dynamodb.Table("tokens")
 log_level = os.environ['LOG_LEVEL']
 log = logging.getLogger(__name__)
 logging.getLogger().setLevel(log_level)
-
+SRC_TIMEZONE = timezone("GMT")
+DST_TIMEZONE = timezone(os.getenv("TIMEZONE", "Europe/Rome"))
 
 def lambda_function(event, context):
     log.debug("Event: " + json.dumps(event))
-    params = json.loads(event["body"])
+    try:
+        params = json.loads(event["body"])
+    except TypeError:
+        params = event["body"]
+    
+    if params is None:
+        params = {}
     token_key = event["stageVariables"]["HK"]
 
     authorizationHeader = {k.lower(): v for k, v in event['headers'].items() if k.lower() == 'authorization'}
@@ -44,17 +52,19 @@ def lambda_function(event, context):
                     "message": "Check-in already exists"
                 })
             }
-            
-    checkin_date = "{} {}".format(params["checkinDay"], params["checkinTime"])
+    date_tz = SRC_TIMEZONE.localize(datetime.now()).astimezone(DST_TIMEZONE)
+    date = date_tz.isoformat()
+    Day = date.split("T")[0]
+    Time = date_tz.strftime("%H:%M:%S")
     try:
         with table.batch_writer() as batch:
-            access_hash = hashlib.md5("{}|{}".format(jwt_token["sub"],checkin_date).encode()).hexdigest()
+            access_hash = hashlib.md5("{}|{}".format(jwt_token["sub"],date).encode()).hexdigest()
             batch.put_item({
                 "login": jwt_token["sub"],
                 "name": jwt_token["name"],
-                "checkinDate": checkin_date,
-                "checkinDay": params["checkinDay"],
-                "checkinTime": params["checkinTime"],
+                "checkinDate": date,
+                "checkinDay": Day,
+                "checkinTime": Time,
                 "bodyTemp": "n/a",
                 "checkoutDay": "",
                 "checkoutDate": "",
@@ -85,7 +95,7 @@ def lambda_function(event, context):
     return {
         "statusCode": 200,
         "body": json.dumps({
-            "message":"Checked in at {}".format(checkin_date),
+            "message":"Checked in at {}".format(date),
             "token": token
         }),
         "headers": {

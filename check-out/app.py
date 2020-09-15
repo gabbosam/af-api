@@ -2,6 +2,7 @@ import os
 import re
 import json
 from datetime import datetime, timedelta
+from pytz import timezone
 import logging
 import base64
 import hashlib
@@ -16,10 +17,18 @@ table_tokens = dynamodb.Table("tokens")
 log_level = os.environ['LOG_LEVEL']
 log = logging.getLogger(__name__)
 logging.getLogger().setLevel(log_level)
+SRC_TIMEZONE = timezone("GMT")
+DST_TIMEZONE = timezone(os.getenv("TIMEZONE", "Europe/Rome"))
 
 def lambda_function(event, context):
     log.debug("Event: " + json.dumps(event))
-    params = json.loads(event["body"])
+    try:
+        params = json.loads(event["body"])
+    except TypeError:
+        params = event["body"]
+    
+    if params is None:
+        params = {}
     token_key = event["stageVariables"]["HK"]
 
     authorizationHeader = {k.lower(): v for k, v in event['headers'].items() if k.lower() == 'authorization'}
@@ -27,7 +36,12 @@ def lambda_function(event, context):
     log.debug("JWT Token: {}".format(token))
 
     jwt_token = jwt.decode(token, token_key, algorithm=['HS256'])
-    checkout_date = "{} {}".format(params["checkoutDay"], params["checkoutTime"])
+
+    date_tz = SRC_TIMEZONE.localize(datetime.now()).astimezone(DST_TIMEZONE)
+    date = date_tz.isoformat()
+    Day = date.split("T")[0]
+    Time = date_tz.strftime("%H:%M:%S")
+
     access_hash = jwt_token["access_hash"]
     try:
         with table.batch_writer() as batch:
@@ -45,9 +59,9 @@ def lambda_function(event, context):
                     "checkinDay": item["checkinDay"],
                     "checkinTime": item["checkinTime"],
                     "bodyTemp": "n/a",
-                    "checkoutDay": params["checkoutDay"],
-                    "checkoutDate": checkout_date,
-                    "checkoutTime": params["checkoutTime"],
+                    "checkoutDay": Day,
+                    "checkoutDate": date,
+                    "checkoutTime": Time,
                     "tenant": jwt_token.get("tenant", "default"),
                     "uuid": jwt_token["uuid"]
                 })
@@ -81,7 +95,7 @@ def lambda_function(event, context):
     return {
         "statusCode": 200,
         "body": json.dumps({
-            "message": "Checked out at {}".format(checkout_date),
+            "message": "Checked out at {}".format(date),
             "token": token
         }),
         "headers": {
