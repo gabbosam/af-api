@@ -18,6 +18,12 @@ log_level = os.environ['LOG_LEVEL']
 log = logging.getLogger(__name__)
 logging.getLogger().setLevel(log_level)
 
+class UserNotFound(Exception):
+    pass
+
+class UserPasswordMismatch(Exception):
+    pass
+
 def get_SALT():
     response = boto3.client("secretsmanager").get_secret_value(
         SecretId="SALT"
@@ -37,11 +43,12 @@ def lambda_function(event, context):
     salt = get_SALT()
 
     item = table.get_item(ConsistentRead=True, Key={"login": username})
-    if item.get('Item') is not None:
-        ddb_password = item.get('Item').get('password')
-        log.debug("ddb_password:" + json.dumps(ddb_password))
+    try:
+        if item.get('Item') is not None:
+            ddb_password = item.get('Item').get('password')
+            log.debug("ddb_password:" + json.dumps(ddb_password))
 
-        if ddb_password is not None:
+            
             str2hash = "{}|{}|{}".format(username, password, salt)
             result_hash = hashlib.md5(str2hash.encode()).hexdigest()
             if result_hash == ddb_password:
@@ -82,13 +89,24 @@ def lambda_function(event, context):
                         }
                     )
             else:
-                return {
-                    "statusCode": 403,
-                    "body": json.dumps({
-                        "message": "Username and password doesn't match!"
-                    })
-                }
-    
+                raise UserPasswordMismatch()
+        else:
+            raise UserNotFound()
+    except UserPasswordMismatch:
+        return {
+            "statusCode": 403,
+            "body": json.dumps({
+                "message": "Username and password doesn't match!"
+            })
+        }
+    except UserNotFound:
+        return {
+            "statusCode": 404,
+            "body": json.dumps({
+                "message": "User not exists!"
+            })
+        }
+
     return {
         "statusCode": 200,
         "body": json.dumps({

@@ -20,6 +20,8 @@ logging.getLogger().setLevel(log_level)
 SRC_TIMEZONE = timezone("GMT")
 DST_TIMEZONE = timezone(os.getenv("TIMEZONE", "Europe/Rome"))
 
+class CheckInNotFound(Exception):
+    pass
 def lambda_function(event, context):
     log.debug("Event: " + json.dumps(event))
     try:
@@ -42,8 +44,11 @@ def lambda_function(event, context):
     Day = date.split("T")[0]
     Time = date_tz.strftime("%H:%M:%S")
 
-    access_hash = jwt_token["access_hash"]
     try:
+        try:
+            access_hash = jwt_token["access_hash"]
+        except KeyError:
+            raise CheckInNotFound()
         with table.batch_writer() as batch:
             items = table.query(
                 IndexName="login-hash-index",
@@ -76,13 +81,14 @@ def lambda_function(event, context):
                             "token": token
                         }
                     )
-            else:
-                return {
-                    "statusCode": 404,
-                    "body": json.dumps({
-                        "message": "Check-in reference not found"
-                    })
-                }
+    except CheckInNotFound():
+        log.error("Ceck-in reference not found")
+        return {
+            "statusCode": 404,
+            "body": json.dumps({
+                "message": "Check-in reference not found"
+            })
+        }
     except Exception as ex:
         log.error(ex)
         return {
