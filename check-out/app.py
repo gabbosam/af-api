@@ -81,8 +81,8 @@ def lambda_function(event, context):
                             "token": token
                         }
                     )
-    except CheckInNotFound():
-        log.error("Ceck-in reference not found")
+    except CheckInNotFound:
+        log.error("Check-in reference not found")
         return {
             "statusCode": 404,
             "body": json.dumps({
