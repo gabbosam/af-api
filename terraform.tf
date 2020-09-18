@@ -193,6 +193,47 @@ resource "aws_api_gateway_integration" "login_integration" {
   ]
 }
 
+#logout
+resource "aws_api_gateway_resource" "logout" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
+  path_part   = "logout"
+  depends_on = [
+    aws_api_gateway_rest_api.api_gw
+  ]
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_api_gateway_method" "logout_method" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.logout.id
+  http_method   = "POST"
+  authorization = "NONE"
+  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  api_key_required = true
+  depends_on = [
+    aws_api_gateway_resource.logout
+  ]
+}
+
+resource "aws_api_gateway_integration" "logout_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.logout.id
+  http_method = aws_api_gateway_method.logout_method.http_method
+  # integration_http_method for lambda integration MUST BE POST
+  # see: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_integration#integration_http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.logout.invoke_arn
+  content_handling        = "CONVERT_TO_TEXT"
+  depends_on = [
+    aws_api_gateway_resource.logout,
+    aws_api_gateway_method.logout_method
+  ]
+}
+
 resource "aws_api_gateway_method" "login_cors" {
   rest_api_id   = aws_api_gateway_rest_api.api_gw.id
   resource_id   = aws_api_gateway_resource.login.id
@@ -233,45 +274,19 @@ resource "aws_api_gateway_method_response" "login_cors_response" {
   }
 }
 
-#logout
-resource "aws_api_gateway_resource" "logout" {
+resource "aws_api_gateway_integration_response" "login_cors_integration_response" {
   rest_api_id = aws_api_gateway_rest_api.api_gw.id
-  parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
-  path_part   = "logout"
-  depends_on = [
-    aws_api_gateway_rest_api.api_gw
-  ]
-  lifecycle {
-    create_before_destroy = true
+  resource_id = aws_api_gateway_resource.login.id
+  http_method = aws_api_gateway_method.login_cors.http_method
+  status_code = aws_api_gateway_method_response.login_cors_response.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
-}
-
-resource "aws_api_gateway_method" "logout_method" {
-  rest_api_id      = aws_api_gateway_rest_api.api_gw.id
-  resource_id      = aws_api_gateway_resource.logout.id
-  http_method      = "POST"
-  authorization    = "CUSTOM"
-  authorizer_id    = aws_api_gateway_authorizer.authorizer.id
-  api_key_required = true
-  depends_on = [
-    aws_api_gateway_resource.logout
-  ]
-}
-
-resource "aws_api_gateway_integration" "logout_integration" {
-  rest_api_id = aws_api_gateway_rest_api.api_gw.id
-  resource_id = aws_api_gateway_resource.logout.id
-  http_method = aws_api_gateway_method.logout_method.http_method
-  # integration_http_method for lambda integration MUST BE POST
-  # see: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_integration#integration_http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.logout.invoke_arn
-  content_handling        = "CONVERT_TO_TEXT"
-  depends_on = [
-    aws_api_gateway_resource.logout,
-    aws_api_gateway_method.logout_method
-  ]
+  response_templates = {
+    "application/json" = ""
+  }
 }
 
 resource "aws_api_gateway_method" "logout_cors" {
@@ -313,7 +328,22 @@ resource "aws_api_gateway_method_response" "logout_cors_response" {
     "method.response.header.Access-Control-Allow-Methods"     = true
   }
 }
-#end logout
+
+resource "aws_api_gateway_integration_response" "logout_cors_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.logout.id
+  http_method = aws_api_gateway_method.logout_cors.http_method
+  status_code = aws_api_gateway_method_response.logout_cors_response.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+  response_templates = {
+    "application/json" = ""
+  }
+}
+
 resource "aws_api_gateway_resource" "refresh_token" {
   rest_api_id = aws_api_gateway_rest_api.api_gw.id
   parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
@@ -488,6 +518,171 @@ resource "aws_api_gateway_integration" "add_user_integration" {
     aws_api_gateway_resource.add_user,
     aws_api_gateway_method.add_user_method
   ]
+}
+
+resource "aws_api_gateway_method" "check_in_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.check_in.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+  depends_on = [
+    aws_api_gateway_resource.check_in
+  ]
+}
+
+resource "aws_api_gateway_integration" "check_in_cors_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.check_in.id
+  http_method = aws_api_gateway_method.check_in_cors.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = jsonencode(
+      {
+        statusCode = 200
+      }
+    )
+  }
+}
+
+resource "aws_api_gateway_method_response" "check_in_cors_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.check_in.id
+  http_method = aws_api_gateway_method.check_in_cors.http_method
+  status_code = "200"
+  response_models = {
+    "application/json" = "Empty"
+  }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "check_in_cors_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.check_in.id
+  http_method = aws_api_gateway_method.check_in_cors.http_method
+  status_code = aws_api_gateway_method_response.check_in_cors_response.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+  response_templates = {
+    "application/json" = ""
+  }
+}
+
+resource "aws_api_gateway_method" "check_out_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.check_out.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+  depends_on = [
+    aws_api_gateway_resource.check_out
+  ]
+}
+
+resource "aws_api_gateway_integration" "check_out_cors_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.check_out.id
+  http_method = aws_api_gateway_method.check_out_cors.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = jsonencode(
+      {
+        statusCode = 200
+      }
+    )
+  }
+}
+
+resource "aws_api_gateway_method_response" "check_out_cors_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.check_out.id
+  http_method = aws_api_gateway_method.check_out_cors.http_method
+  status_code = "200"
+  response_models = {
+    "application/json" = "Empty"
+  }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "check_out_cors_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.check_out.id
+  http_method = aws_api_gateway_method.check_out_cors.http_method
+  status_code = aws_api_gateway_method_response.check_out_cors_response.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+  response_templates = {
+    "application/json" = ""
+  }
+}
+
+resource "aws_api_gateway_method" "refresh_token_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.refresh_token.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+  depends_on = [
+    aws_api_gateway_resource.refresh_token
+  ]
+}
+
+resource "aws_api_gateway_integration" "refresh_token_cors_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.refresh_token.id
+  http_method = aws_api_gateway_method.refresh_token_cors.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = jsonencode(
+      {
+        statusCode = 200
+      }
+    )
+  }
+}
+
+resource "aws_api_gateway_method_response" "refresh_token_cors_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.refresh_token.id
+  http_method = aws_api_gateway_method.refresh_token_cors.http_method
+  status_code = "200"
+  response_models = {
+    "application/json" = "Empty"
+  }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "refresh_token_cors_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.refresh_token.id
+  http_method = aws_api_gateway_method.refresh_token_cors.http_method
+  status_code = aws_api_gateway_method_response.refresh_token_cors_response.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+  response_templates = {
+    "application/json" = ""
+  }
 }
 
 resource "aws_lambda_permission" "login" {
