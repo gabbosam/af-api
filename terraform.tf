@@ -46,6 +46,21 @@ resource "aws_lambda_function" "refresh-token" {
   }
 }
 
+resource "aws_lambda_function" "logout" {
+  function_name    = "logout"
+  role             = "arn:aws:iam::374237882048:role/lambda-role"
+  handler          = "app.lambda_function"
+  filename         = "logout/build/code.zip"
+  source_code_hash = filebase64sha256("logout/build/code.zip")
+  timeout          = 30
+  runtime          = "python3.8"
+  environment {
+    variables = {
+      LOG_LEVEL = "DEBUG"
+    }
+  }
+}
+
 resource "aws_lambda_function" "check-in" {
   function_name    = "check-in"
   role             = "arn:aws:iam::374237882048:role/lambda-role"
@@ -218,6 +233,87 @@ resource "aws_api_gateway_method_response" "login_cors_response" {
   }
 }
 
+#logout
+resource "aws_api_gateway_resource" "logout" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
+  path_part   = "logout"
+  depends_on = [
+    aws_api_gateway_rest_api.api_gw
+  ]
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_api_gateway_method" "logout_method" {
+  rest_api_id      = aws_api_gateway_rest_api.api_gw.id
+  resource_id      = aws_api_gateway_resource.logout.id
+  http_method      = "POST"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  api_key_required = true
+  depends_on = [
+    aws_api_gateway_resource.logout
+  ]
+}
+
+resource "aws_api_gateway_integration" "logout_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.logout.id
+  http_method = aws_api_gateway_method.logout_method.http_method
+  # integration_http_method for lambda integration MUST BE POST
+  # see: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_integration#integration_http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.logout.invoke_arn
+  content_handling        = "CONVERT_TO_TEXT"
+  depends_on = [
+    aws_api_gateway_resource.logout,
+    aws_api_gateway_method.logout_method
+  ]
+}
+
+resource "aws_api_gateway_method" "logout_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.logout.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+  depends_on = [
+    aws_api_gateway_resource.logout
+  ]
+}
+
+resource "aws_api_gateway_integration" "logout_cors_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.logout.id
+  http_method = aws_api_gateway_method.logout_cors.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = jsonencode(
+      {
+        statusCode = 200
+      }
+    )
+  }
+}
+
+resource "aws_api_gateway_method_response" "logout_cors_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.logout.id
+  http_method = aws_api_gateway_method.logout_cors.http_method
+  status_code = "200"
+  response_models = {
+    "application/json" = "Empty"
+  }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+  }
+}
+#end logout
 resource "aws_api_gateway_resource" "refresh_token" {
   rest_api_id = aws_api_gateway_rest_api.api_gw.id
   parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
@@ -403,6 +499,19 @@ resource "aws_lambda_permission" "login" {
   # More: http://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-control-access-using-iam-policies-to-invoke-api.html
   source_arn = format(
     "%s/*/POST/login",
+    aws_api_gateway_rest_api.api_gw.execution_arn
+  )
+}
+
+resource "aws_lambda_permission" "logout" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = "logout"
+  principal     = "apigateway.amazonaws.com"
+
+  # More: http://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-control-access-using-iam-policies-to-invoke-api.html
+  source_arn = format(
+    "%s/*/POST/logout",
     aws_api_gateway_rest_api.api_gw.execution_arn
   )
 }
