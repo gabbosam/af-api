@@ -40,7 +40,12 @@ def lambda_function(event, context):
             log.info("Invalid signature")
             return {
                 "statusCode": 401,
-                "message": "Invalid signature"
+                "body": json.dumps({"message":"Invalid signature"}),
+                "headers": {
+                    "Access-Control-Allow-Origin": "*", 
+                    "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                }
             }
         issued_at = datetime.today()
         exp_at = issued_at + timedelta(minutes=int(os.getenv("TOKEN_DURATION")))
@@ -59,7 +64,7 @@ def lambda_function(event, context):
             {
                 "sub": "af-api",
                 "iat": issued_at.timestamp(),
-                "exp": exp_at.timestamp(),
+                "exp": refresh_exp_at.timestamp(),
                 "uuid": token_uuid
             }, 
             token_key, algorithm='HS256'
@@ -81,7 +86,12 @@ def lambda_function(event, context):
     else:
         return {
             "statusCode": 403,
-            "message": "Unknown session, try new login"
+            "body": json.dumps({"message": "Unknown session, try new login"}),
+            "headers": {
+                "Access-Control-Allow-Origin": "*", 
+                "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            }
         }
 
     return {
@@ -93,8 +103,7 @@ def lambda_function(event, context):
         }),
         "headers": {
             "Access-Control-Allow-Origin": "*", 
-            "Access-Control-Allow-Credentials": True, 
             "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-            "Access-Control-Allow-Methods": "POST, OPTIONS"
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
         }
     }

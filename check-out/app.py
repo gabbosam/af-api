@@ -87,7 +87,12 @@ def lambda_function(event, context):
             "statusCode": 404,
             "body": json.dumps({
                 "message": "Check-in reference not found"
-            })
+            }),
+            "headers": {
+                "Access-Control-Allow-Origin": "*", 
+                "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            }
         }
     except Exception as ex:
         log.error(ex)
@@ -95,7 +100,12 @@ def lambda_function(event, context):
             "statusCode": 500,
             "body": json.dumps({
                 "message": "Checkout failed"
-            })
+            }),
+            "headers": {
+                "Access-Control-Allow-Origin": "*", 
+                "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            }
         }
 
     return {
@@ -106,8 +116,7 @@ def lambda_function(event, context):
         }),
         "headers": {
             "Access-Control-Allow-Origin": "*", 
-            "Access-Control-Allow-Credentials": True, 
             "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-            "Access-Control-Allow-Methods": "POST, OPTIONS"
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
         }
     }

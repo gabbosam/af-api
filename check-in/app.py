@@ -50,7 +50,12 @@ def lambda_function(event, context):
                 "statusCode": 200,
                 "body": json.dumps({
                     "message": "Check-in already exists"
-                })
+                }),
+                "headers": {
+                    "Access-Control-Allow-Origin": "*", 
+                    "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+                }
             }
     date_tz = SRC_TIMEZONE.localize(datetime.now()).astimezone(DST_TIMEZONE)
     date = date_tz.isoformat()
@@ -89,7 +94,12 @@ def lambda_function(event, context):
             "statusCode": 500,
             "body": json.dumps({
                 "message": "Checkin failed"
-            })
+            }),
+            "headers": {
+                "Access-Control-Allow-Origin": "*", 
+                "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            }
         }
 
     return {
@@ -100,8 +110,7 @@ def lambda_function(event, context):
         }),
         "headers": {
             "Access-Control-Allow-Origin": "*", 
-            "Access-Control-Allow-Credentials": True, 
             "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-            "Access-Control-Allow-Methods": "POST, OPTIONS"
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
         }
     }

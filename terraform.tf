@@ -125,6 +125,41 @@ resource "aws_lambda_function" "add-user" {
   }
 }
 
+resource "aws_lambda_function" "me" {
+  function_name    = "me"
+  role             = "arn:aws:iam::374237882048:role/lambda-role"
+  handler          = "app.lambda_function"
+  filename         = "me/build/code.zip"
+  source_code_hash = filebase64sha256("me/build/code.zip")
+  timeout          = 30
+  runtime          = "python3.8"
+  environment {
+    variables = {
+      LOG_LEVEL  = "DEBUG"
+      TABLE_NAME = "users"
+    }
+  }
+}
+
+resource "aws_lambda_function" "update_me" {
+  function_name    = "update-me"
+  role             = "arn:aws:iam::374237882048:role/lambda-role"
+  handler          = "app.lambda_function"
+  filename         = "update-me/build/code.zip"
+  source_code_hash = filebase64sha256("update-me/build/code.zip")
+  timeout          = 30
+  runtime          = "python3.8"
+  environment {
+    variables = {
+      LOG_LEVEL  = "DEBUG"
+      TABLE_NAME = "users"
+    }
+  }
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # API GW
 resource "aws_api_gateway_rest_api" "api_gw" {
   name = "af-api"
@@ -190,6 +225,87 @@ resource "aws_api_gateway_integration" "login_integration" {
   depends_on = [
     aws_api_gateway_resource.login,
     aws_api_gateway_method.login_method
+  ]
+}
+
+# me
+resource "aws_api_gateway_resource" "me" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
+  path_part   = "me"
+  depends_on = [
+    aws_api_gateway_rest_api.api_gw
+  ]
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_api_gateway_method" "me_method" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.me.id
+  http_method   = "GET"
+  authorization = "NONE"
+  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  api_key_required = true
+  depends_on = [
+    aws_api_gateway_resource.me
+  ]
+}
+
+resource "aws_api_gateway_integration" "me_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.me.id
+  http_method = aws_api_gateway_method.me_method.http_method
+  # integration_http_method for lambda integration MUST BE POST
+  # see: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_integration#integration_http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.me.invoke_arn
+  content_handling        = "CONVERT_TO_TEXT"
+  depends_on = [
+    aws_api_gateway_resource.me,
+    aws_api_gateway_method.me_method
+  ]
+}
+
+resource "aws_api_gateway_resource" "update_me" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
+  path_part   = "update-me"
+  depends_on = [
+    aws_api_gateway_rest_api.api_gw
+  ]
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_api_gateway_method" "update_me_method" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.update_me.id
+  http_method   = "POST"
+  authorization = "NONE"
+  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  api_key_required = true
+  depends_on = [
+    aws_api_gateway_resource.update_me
+  ]
+}
+
+resource "aws_api_gateway_integration" "update_me_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.update_me.id
+  http_method = aws_api_gateway_method.update_me_method.http_method
+  # integration_http_method for lambda integration MUST BE POST
+  # see: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_integration#integration_http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.update_me.invoke_arn
+  content_handling        = "CONVERT_TO_TEXT"
+  depends_on = [
+    aws_api_gateway_resource.update_me,
+    aws_api_gateway_method.update_me_method
   ]
 }
 
@@ -267,10 +383,9 @@ resource "aws_api_gateway_method_response" "login_cors_response" {
     "application/json" = "Empty"
   }
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin"      = true
-    "method.response.header.Access-Control-Allow-Credentials" = true
-    "method.response.header.Access-Control-Allow-Headers"     = true
-    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
   }
 }
 
@@ -280,9 +395,10 @@ resource "aws_api_gateway_integration_response" "login_cors_integration_response
   http_method = aws_api_gateway_method.login_cors.http_method
   status_code = aws_api_gateway_method_response.login_cors_response.status_code
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST,GET'"
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+
   }
   response_templates = {
     "application/json" = ""
@@ -322,10 +438,9 @@ resource "aws_api_gateway_method_response" "logout_cors_response" {
     "application/json" = "Empty"
   }
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin"      = true
-    "method.response.header.Access-Control-Allow-Credentials" = true
-    "method.response.header.Access-Control-Allow-Headers"     = true
-    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
   }
 }
 
@@ -335,9 +450,10 @@ resource "aws_api_gateway_integration_response" "logout_cors_integration_respons
   http_method = aws_api_gateway_method.logout_cors.http_method
   status_code = aws_api_gateway_method_response.logout_cors_response.status_code
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST,GET'"
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+
   }
   response_templates = {
     "application/json" = ""
@@ -398,11 +514,11 @@ resource "aws_api_gateway_resource" "check_in" {
 }
 
 resource "aws_api_gateway_method" "check_in_method" {
-  rest_api_id      = aws_api_gateway_rest_api.api_gw.id
-  resource_id      = aws_api_gateway_resource.check_in.id
-  http_method      = "POST"
-  authorization    = "CUSTOM"
-  authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.check_in.id
+  http_method   = "POST"
+  authorization = "NONE"
+  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
   api_key_required = true
   depends_on = [
     aws_api_gateway_resource.check_in
@@ -438,11 +554,11 @@ resource "aws_api_gateway_resource" "check_out" {
 }
 
 resource "aws_api_gateway_method" "check_out_method" {
-  rest_api_id      = aws_api_gateway_rest_api.api_gw.id
-  resource_id      = aws_api_gateway_resource.check_out.id
-  http_method      = "POST"
-  authorization    = "CUSTOM"
-  authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.check_out.id
+  http_method   = "POST"
+  authorization = "NONE"
+  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
   api_key_required = true
   depends_on = [
     aws_api_gateway_resource.check_out
@@ -553,10 +669,9 @@ resource "aws_api_gateway_method_response" "check_in_cors_response" {
     "application/json" = "Empty"
   }
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin"      = true
-    "method.response.header.Access-Control-Allow-Credentials" = true
-    "method.response.header.Access-Control-Allow-Headers"     = true
-    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
   }
 }
 
@@ -566,8 +681,8 @@ resource "aws_api_gateway_integration_response" "check_in_cors_integration_respo
   http_method = aws_api_gateway_method.check_in_cors.http_method
   status_code = aws_api_gateway_method_response.check_in_cors_response.status_code
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST,GET'"
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
   response_templates = {
@@ -608,10 +723,9 @@ resource "aws_api_gateway_method_response" "check_out_cors_response" {
     "application/json" = "Empty"
   }
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin"      = true
-    "method.response.header.Access-Control-Allow-Credentials" = true
-    "method.response.header.Access-Control-Allow-Headers"     = true
-    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
   }
 }
 
@@ -621,8 +735,8 @@ resource "aws_api_gateway_integration_response" "check_out_cors_integration_resp
   http_method = aws_api_gateway_method.check_out_cors.http_method
   status_code = aws_api_gateway_method_response.check_out_cors_response.status_code
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST,GET'"
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
   response_templates = {
@@ -663,10 +777,9 @@ resource "aws_api_gateway_method_response" "refresh_token_cors_response" {
     "application/json" = "Empty"
   }
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin"      = true
-    "method.response.header.Access-Control-Allow-Credentials" = true
-    "method.response.header.Access-Control-Allow-Headers"     = true
-    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
   }
 }
 
@@ -676,8 +789,116 @@ resource "aws_api_gateway_integration_response" "refresh_token_cors_integration_
   http_method = aws_api_gateway_method.refresh_token_cors.http_method
   status_code = aws_api_gateway_method_response.refresh_token_cors_response.status_code
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST,GET'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+  response_templates = {
+    "application/json" = ""
+  }
+}
+
+resource "aws_api_gateway_method" "me_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.me.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+  depends_on = [
+    aws_api_gateway_resource.me
+  ]
+}
+
+resource "aws_api_gateway_integration" "me_cors_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.me.id
+  http_method = aws_api_gateway_method.me_cors.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = jsonencode(
+      {
+        statusCode = 200
+      }
+    )
+  }
+}
+
+resource "aws_api_gateway_method_response" "me_cors_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.me.id
+  http_method = aws_api_gateway_method.me_cors.http_method
+  status_code = "200"
+  response_models = {
+    "application/json" = "Empty"
+  }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "me_cors_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.me.id
+  http_method = aws_api_gateway_method.me_cors.http_method
+  status_code = aws_api_gateway_method_response.me_cors_response.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST,GET'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+  response_templates = {
+    "application/json" = ""
+  }
+}
+
+resource "aws_api_gateway_method" "update_me_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.update_me.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+  depends_on = [
+    aws_api_gateway_resource.update_me
+  ]
+}
+
+resource "aws_api_gateway_integration" "update_me_cors_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.update_me.id
+  http_method = aws_api_gateway_method.update_me_cors.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = jsonencode(
+      {
+        statusCode = 200
+      }
+    )
+  }
+}
+
+resource "aws_api_gateway_method_response" "update_me_cors_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.update_me.id
+  http_method = aws_api_gateway_method.update_me_cors.http_method
+  status_code = "200"
+  response_models = {
+    "application/json" = "Empty"
+  }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "update_me_cors_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.update_me.id
+  http_method = aws_api_gateway_method.update_me_cors.http_method
+  status_code = aws_api_gateway_method_response.update_me_cors_response.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST,GET'"
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
   response_templates = {
@@ -788,6 +1009,32 @@ resource "aws_lambda_permission" "admins-authorizer" {
     "%s/authorizers/%s",
     aws_api_gateway_rest_api.api_gw.execution_arn,
     aws_api_gateway_authorizer.admins-authorizer.id
+  )
+}
+
+resource "aws_lambda_permission" "me" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = "me"
+  principal     = "apigateway.amazonaws.com"
+
+  # More: http://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-control-access-using-iam-policies-to-invoke-api.html
+  source_arn = format(
+    "%s/*/GET/me",
+    aws_api_gateway_rest_api.api_gw.execution_arn
+  )
+}
+
+resource "aws_lambda_permission" "update_me" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = "update-me"
+  principal     = "apigateway.amazonaws.com"
+
+  # More: http://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-control-access-using-iam-policies-to-invoke-api.html
+  source_arn = format(
+    "%s/*/POST/update-me",
+    aws_api_gateway_rest_api.api_gw.execution_arn
   )
 }
 

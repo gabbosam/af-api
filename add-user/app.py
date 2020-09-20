@@ -30,12 +30,14 @@ def lambda_function(event, context):
     params["password"] = result_hash
 
     items = table.scan()
-    codes = sorted([int(i["code"]) for i in items.get("Items",[])])
-    if codes:
-        code = codes[-1] + 1
-    else:
-        code = 1
-    params["code"] = str(code)
+    if not params.get("code"):
+        codes = sorted([int(i["code"]) for i in items.get("Items",[])])
+        if codes:
+            code = codes[-1] + 1
+        else:
+            code = 1
+        params["code"] = str(code)
+        
     if "tenant" not in params:
         params["tenant"] = "default"
         

@@ -31,6 +31,7 @@ def lambda_function(event, context):
 
     # Ensure the incoming Lambda event is for a token authorizer
     if event['type'] != 'REQUEST':
+        log.error("Unauthorized")
         raise Exception('Unauthorized')
 
     try:
@@ -46,12 +47,14 @@ def lambda_function(event, context):
         policy.region = tmp[3]
         policy.stage = apiGatewayArnTmp[1]
 
+        log.debug("%s" % policy)
+
         # Get authorization header in lowercase
-        authorizationHeader = {k.lower(): v for k, v in event['headers'].items() if k.lower() == 'authorization'}
-        token = authorizationHeader["authorization"].split()[1]
-        token_key = event["stageVariables"]["HK"]
-        log.debug("JWT Token: {}".format(token))
         try:
+            authorizationHeader = {k.lower(): v for k, v in event['headers'].items() if k.lower() == 'authorization'}
+            token = authorizationHeader["authorization"].split()[1]
+            token_key = event["stageVariables"]["HK"]
+            log.debug("JWT Token: {}".format(token))
             jwt_token = jwt.decode(token, token_key, algorithm=['HS256'])
             roleHeader = {k.lower(): v for k, v in event['headers'].items() if k.lower() == 'role'}
             if roleHeader:

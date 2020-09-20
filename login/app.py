@@ -48,7 +48,6 @@ def lambda_function(event, context):
             ddb_password = item.get('Item').get('password')
             log.debug("ddb_password:" + json.dumps(ddb_password))
 
-            
             str2hash = "{}|{}|{}".format(username, password, salt)
             result_hash = hashlib.md5(str2hash.encode()).hexdigest()
             if result_hash == ddb_password:
@@ -65,6 +64,8 @@ def lambda_function(event, context):
                     "iat": issued_at.timestamp(),
                     "exp": exp_at.timestamp(),
                     "tenant": headers.get("x-tenant", "default"),
+                    "email": str(item.get('Item').get('email')),
+                    "privacy": int(item.get("Item").get("privacy", 0)),
                     "uuid": token_uuid
                 }
                 jwt_token = jwt.encode(payload, token_key, algorithm='HS256').decode()
@@ -75,7 +76,7 @@ def lambda_function(event, context):
                     {
                         "sub": "af-api",
                         "iat": issued_at.timestamp(),
-                        "exp": exp_at.timestamp(),
+                        "exp": refresh_exp_at.timestamp(),
                         "uuid": token_uuid
                     }, 
                     token_key, algorithm='HS256'
@@ -97,14 +98,24 @@ def lambda_function(event, context):
             "statusCode": 403,
             "body": json.dumps({
                 "message": "Username and password doesn't match!"
-            })
+            }),
+            "headers": {
+                "Access-Control-Allow-Origin": "*", 
+                "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            }
         }
     except UserNotFound:
         return {
             "statusCode": 404,
             "body": json.dumps({
                 "message": "User not exists!"
-            })
+            }),
+            "headers": {
+                "Access-Control-Allow-Origin": "*", 
+                "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+            }
         }
 
     return {
@@ -116,8 +127,7 @@ def lambda_function(event, context):
         }),
         "headers": {
             "Access-Control-Allow-Origin": "*", 
-            "Access-Control-Allow-Credentials": True, 
             "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant",
-            "Access-Control-Allow-Methods": "POST, OPTIONS"
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
         }
     }
