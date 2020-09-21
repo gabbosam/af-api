@@ -29,3 +29,9 @@ do
     # echo "Upload code.zip to s3 bucket: $bucket_name with key: $s3key"
     # aws s3api put-object --bucket $bucket_name --key $s3key --body $d/$name/code.zip --profile AF
 done;
+
+# pdf-gen
+echo "Build pdf-gen function"
+cp pdf-gen/*.js pdf-gen/build/;
+cp -r pdf-gen/node_modules/ pdf-gen/build/node_modules/;
+cd pdf-gen/build && zip -r code.zip * && cd -

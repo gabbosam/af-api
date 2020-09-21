@@ -160,6 +160,21 @@ resource "aws_lambda_function" "update_me" {
   }
 }
 
+resource "aws_lambda_function" "pdf-gen" {
+  function_name    = "pdf-gen"
+  role             = "arn:aws:iam::374237882048:role/lambda-role"
+  handler          = "app.handler"
+  filename         = "pdf-gen/build/code.zip"
+  source_code_hash = filebase64sha256("pdf-gen/build/code.zip")
+  timeout          = 30
+  runtime          = "nodejs12.x"
+  environment {
+    variables = {
+      LOG_LEVEL = "INFO"
+    }
+  }
+}
+
 # API GW
 resource "aws_api_gateway_rest_api" "api_gw" {
   name = "af-api"
@@ -578,6 +593,46 @@ resource "aws_api_gateway_integration" "check_out_integration" {
   depends_on = [
     aws_api_gateway_resource.check_out,
     aws_api_gateway_method.check_out_method
+  ]
+}
+
+resource "aws_api_gateway_resource" "pdf-gen" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
+  path_part   = "pdf-gen"
+  depends_on = [
+    aws_api_gateway_rest_api.api_gw
+  ]
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_api_gateway_method" "pdf_gen_method" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.pdf-gen.id
+  http_method   = "GET"
+  authorization = "NONE"
+  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  api_key_required = true
+  depends_on = [
+    aws_api_gateway_resource.pdf-gen
+  ]
+}
+
+resource "aws_api_gateway_integration" "pdf_gen_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.pdf-gen.id
+  http_method = aws_api_gateway_method.pdf_gen_method.http_method
+  # integration_http_method for lambda integration MUST BE POST
+  # see: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_integration#integration_http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.pdf-gen.invoke_arn
+  content_handling        = "CONVERT_TO_TEXT"
+  depends_on = [
+    aws_api_gateway_resource.pdf-gen,
+    aws_api_gateway_method.pdf_gen_method
   ]
 }
 
@@ -1038,6 +1093,18 @@ resource "aws_lambda_permission" "update_me" {
   )
 }
 
+resource "aws_lambda_permission" "pdf-gen" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = "pdf-gen"
+  principal     = "apigateway.amazonaws.com"
+
+  # More: http://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-control-access-using-iam-policies-to-invoke-api.html
+  source_arn = format(
+    "%s/*/GET/pdf-gen",
+    aws_api_gateway_rest_api.api_gw.execution_arn
+  )
+}
 resource "aws_api_gateway_usage_plan" "api_gw_usage_plan" {
   name = "Base"
   api_stages {
@@ -1054,5 +1121,14 @@ resource "aws_api_gateway_usage_plan" "api_gw_usage_plan" {
   throttle_settings {
     burst_limit = 25
     rate_limit  = 50
+  }
+}
+
+resource "aws_s3_bucket" "af-upload-docs" {
+  bucket = "af-upload-docs"
+  acl    = "private"
+
+  tags = {
+    Name = "af-upload-docs"
   }
 }

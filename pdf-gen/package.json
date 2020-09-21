@@ -1,0 +1,6 @@
+{
+    "dependencies": {
+        "json-web-token": "^3.2.0",
+        "pdf-lib": "^1.11.1"
+    }
+}
