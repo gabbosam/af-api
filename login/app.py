@@ -64,9 +64,9 @@ def lambda_function(event, context):
                     "iat": issued_at.timestamp(),
                     "exp": exp_at.timestamp(),
                     "tenant": headers.get("x-tenant", "default"),
-                    "email": str(item.get('Item').get('email')),
+                    "email": str(item.get('Item').get('email',"")),
                     "privacy": int(item.get("Item").get("privacy", 0)),
-                    "date_submit_survey": str(item.get('Item').get('date_submit_survey')),
+                    "date_submit_survey": str(item.get('Item').get('date_submit_survey',"")),
                     "uuid": token_uuid
                 }
                 jwt_token = jwt.encode(payload, token_key, algorithm='HS256').decode()
