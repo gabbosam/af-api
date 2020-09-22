@@ -32,8 +32,11 @@ exports.handler = async (event) => {
     if (token_error){
         return {
             "statusCode": 403,
-            "body": {
-                "message": "Unauthorized"
+            "body": JSON.stringify({ "message": "Unauthorized" })
+            ,"headers": {
+                "Access-Control-Allow-Origin": "*", 
+                "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
             }
         }
     }
@@ -97,6 +100,9 @@ exports.handler = async (event) => {
             try{
                 profile_values["VisitaMedica"] = item["sport_medical_exam"]["S"]
             }catch(e){}
+            try{
+                profile_values["Compilazione"] = item["date_submit_survey"]["S"]
+            }catch(e){}
 
             for (p in profile_values){
                 console.debug("Get form textfield: " + p);
@@ -104,6 +110,8 @@ exports.handler = async (event) => {
                 console.debug("Form textfield: " + textfield);
                 textfield.setText(profile_values[p]);
             }
+
+            pdf_filename = login_user + '-' + profile_values["Compilazione"].replace("/","").replace("/","");
         }
     });
     
@@ -127,10 +135,6 @@ exports.handler = async (event) => {
                 var checkbox = form.getCheckBox(survey_fields[k] + suffix);
                 checkbox.check();
             }
-
-            const signDateField = form.getTextField('Compilazione');
-            signDateField.setText(item["dateSubmit"]["S"]);
-            pdf_filename = login_user + '-' + item["dateSubmit"]["S"].replace("/","").replace("/","");
         }
     });
 
@@ -183,6 +187,13 @@ exports.handler = async (event) => {
     console.log("success");
     return {
         "statusCode": 200,
-        "body": signed_url
+        "body": JSON.stringify({
+            "url": signed_url
+        }),
+        "headers": {
+            "Access-Control-Allow-Origin": "*", 
+            "Access-Control-Allow-Headers": "Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+        }
     }
 }

@@ -160,6 +160,25 @@ resource "aws_lambda_function" "update_me" {
   }
 }
 
+resource "aws_lambda_function" "add_survey" {
+  function_name    = "add-survey"
+  role             = "arn:aws:iam::374237882048:role/lambda-role"
+  handler          = "app.lambda_function"
+  filename         = "add-survey/build/code.zip"
+  source_code_hash = filebase64sha256("add-survey/build/code.zip")
+  timeout          = 30
+  runtime          = "python3.8"
+  environment {
+    variables = {
+      LOG_LEVEL  = "DEBUG"
+      TABLE_NAME = "survey"
+    }
+  }
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 resource "aws_lambda_function" "pdf-gen" {
   function_name    = "pdf-gen"
   role             = "arn:aws:iam::374237882048:role/lambda-role"
@@ -297,11 +316,11 @@ resource "aws_api_gateway_resource" "update_me" {
 }
 
 resource "aws_api_gateway_method" "update_me_method" {
-  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
-  resource_id   = aws_api_gateway_resource.update_me.id
-  http_method   = "POST"
-  authorization = "NONE"
-  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  rest_api_id      = aws_api_gateway_rest_api.api_gw.id
+  resource_id      = aws_api_gateway_resource.update_me.id
+  http_method      = "POST"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.authorizer.id
   api_key_required = true
   depends_on = [
     aws_api_gateway_resource.update_me
@@ -321,6 +340,46 @@ resource "aws_api_gateway_integration" "update_me_integration" {
   depends_on = [
     aws_api_gateway_resource.update_me,
     aws_api_gateway_method.update_me_method
+  ]
+}
+
+resource "aws_api_gateway_resource" "add_survey" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
+  path_part   = "add-survey"
+  depends_on = [
+    aws_api_gateway_rest_api.api_gw
+  ]
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_api_gateway_method" "add_survey_method" {
+  rest_api_id      = aws_api_gateway_rest_api.api_gw.id
+  resource_id      = aws_api_gateway_resource.add_survey.id
+  http_method      = "POST"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  api_key_required = true
+  depends_on = [
+    aws_api_gateway_resource.add_survey
+  ]
+}
+
+resource "aws_api_gateway_integration" "add_survey_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.add_survey.id
+  http_method = aws_api_gateway_method.add_survey_method.http_method
+  # integration_http_method for lambda integration MUST BE POST
+  # see: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_integration#integration_http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.add_survey.invoke_arn
+  content_handling        = "CONVERT_TO_TEXT"
+  depends_on = [
+    aws_api_gateway_resource.add_survey,
+    aws_api_gateway_method.add_survey_method
   ]
 }
 
@@ -529,11 +588,11 @@ resource "aws_api_gateway_resource" "check_in" {
 }
 
 resource "aws_api_gateway_method" "check_in_method" {
-  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
-  resource_id   = aws_api_gateway_resource.check_in.id
-  http_method   = "POST"
-  authorization = "NONE"
-  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  rest_api_id      = aws_api_gateway_rest_api.api_gw.id
+  resource_id      = aws_api_gateway_resource.check_in.id
+  http_method      = "POST"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.authorizer.id
   api_key_required = true
   depends_on = [
     aws_api_gateway_resource.check_in
@@ -569,11 +628,11 @@ resource "aws_api_gateway_resource" "check_out" {
 }
 
 resource "aws_api_gateway_method" "check_out_method" {
-  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
-  resource_id   = aws_api_gateway_resource.check_out.id
-  http_method   = "POST"
-  authorization = "NONE"
-  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  rest_api_id      = aws_api_gateway_rest_api.api_gw.id
+  resource_id      = aws_api_gateway_resource.check_out.id
+  http_method      = "POST"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.authorizer.id
   api_key_required = true
   depends_on = [
     aws_api_gateway_resource.check_out
@@ -961,6 +1020,115 @@ resource "aws_api_gateway_integration_response" "update_me_cors_integration_resp
   }
 }
 
+resource "aws_api_gateway_method" "add_survey_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.add_survey.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+  depends_on = [
+    aws_api_gateway_resource.add_survey
+  ]
+}
+
+resource "aws_api_gateway_integration" "add_survey_cors_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.add_survey.id
+  http_method = aws_api_gateway_method.add_survey_cors.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = jsonencode(
+      {
+        statusCode = 200
+      }
+    )
+  }
+}
+
+resource "aws_api_gateway_method_response" "add_survey_cors_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.add_survey.id
+  http_method = aws_api_gateway_method.add_survey_cors.http_method
+  status_code = "200"
+  response_models = {
+    "application/json" = "Empty"
+  }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "add_survey_cors_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.add_survey.id
+  http_method = aws_api_gateway_method.add_survey_cors.http_method
+  status_code = aws_api_gateway_method_response.add_survey_cors_response.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST,GET'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+  response_templates = {
+    "application/json" = ""
+  }
+}
+
+resource "aws_api_gateway_method" "pdf_gen_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.pdf-gen.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+  depends_on = [
+    aws_api_gateway_resource.pdf-gen
+  ]
+}
+
+resource "aws_api_gateway_integration" "pdf_gen_cors_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.pdf-gen.id
+  http_method = aws_api_gateway_method.pdf_gen_cors.http_method
+  type        = "MOCK"
+  request_templates = {
+    "application/json" = jsonencode(
+      {
+        statusCode = 200
+      }
+    )
+  }
+}
+
+resource "aws_api_gateway_method_response" "pdf_gen_cors_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.pdf-gen.id
+  http_method = aws_api_gateway_method.pdf_gen_cors.http_method
+  status_code = "200"
+  response_models = {
+    "application/json" = "Empty"
+  }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "pdf-gen_cors_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.pdf-gen.id
+  http_method = aws_api_gateway_method.pdf_gen_cors.http_method
+  status_code = aws_api_gateway_method_response.pdf_gen_cors_response.status_code
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST,GET'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+  response_templates = {
+    "application/json" = ""
+  }
+}
+
+
 resource "aws_lambda_permission" "login" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
@@ -1105,6 +1273,20 @@ resource "aws_lambda_permission" "pdf-gen" {
     aws_api_gateway_rest_api.api_gw.execution_arn
   )
 }
+
+resource "aws_lambda_permission" "add_survey" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = "add-survey"
+  principal     = "apigateway.amazonaws.com"
+
+  # More: http://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-control-access-using-iam-policies-to-invoke-api.html
+  source_arn = format(
+    "%s/*/POST/add-survey",
+    aws_api_gateway_rest_api.api_gw.execution_arn
+  )
+}
+
 resource "aws_api_gateway_usage_plan" "api_gw_usage_plan" {
   name = "Base"
   api_stages {

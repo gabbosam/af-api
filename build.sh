@@ -3,7 +3,7 @@ if [ -n "$1" ]; then
 else
     l=( "add-user" "authorizer" "check-in" "check-out" 
     "login" "logout" "refresh-token" "me"
-    "update-me")
+    "update-me", "add-survey")
 fi;
 
 OLDPWD="$pwd"
