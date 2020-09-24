@@ -316,11 +316,11 @@ resource "aws_api_gateway_resource" "update_me" {
 }
 
 resource "aws_api_gateway_method" "update_me_method" {
-  rest_api_id      = aws_api_gateway_rest_api.api_gw.id
-  resource_id      = aws_api_gateway_resource.update_me.id
-  http_method      = "POST"
-  authorization    = "CUSTOM"
-  authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.update_me.id
+  http_method   = "POST"
+  authorization = "NONE"
+  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
   api_key_required = true
   depends_on = [
     aws_api_gateway_resource.update_me
@@ -356,11 +356,11 @@ resource "aws_api_gateway_resource" "add_survey" {
 }
 
 resource "aws_api_gateway_method" "add_survey_method" {
-  rest_api_id      = aws_api_gateway_rest_api.api_gw.id
-  resource_id      = aws_api_gateway_resource.add_survey.id
-  http_method      = "POST"
-  authorization    = "CUSTOM"
-  authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.add_survey.id
+  http_method   = "POST"
+  authorization = "NONE"
+  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
   api_key_required = true
   depends_on = [
     aws_api_gateway_resource.add_survey
@@ -588,11 +588,11 @@ resource "aws_api_gateway_resource" "check_in" {
 }
 
 resource "aws_api_gateway_method" "check_in_method" {
-  rest_api_id      = aws_api_gateway_rest_api.api_gw.id
-  resource_id      = aws_api_gateway_resource.check_in.id
-  http_method      = "POST"
-  authorization    = "CUSTOM"
-  authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.check_in.id
+  http_method   = "POST"
+  authorization = "NONE"
+  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
   api_key_required = true
   depends_on = [
     aws_api_gateway_resource.check_in
@@ -628,11 +628,11 @@ resource "aws_api_gateway_resource" "check_out" {
 }
 
 resource "aws_api_gateway_method" "check_out_method" {
-  rest_api_id      = aws_api_gateway_rest_api.api_gw.id
-  resource_id      = aws_api_gateway_resource.check_out.id
-  http_method      = "POST"
-  authorization    = "CUSTOM"
-  authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.check_out.id
+  http_method   = "POST"
+  authorization = "NONE"
+  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
   api_key_required = true
   depends_on = [
     aws_api_gateway_resource.check_out
