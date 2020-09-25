@@ -170,8 +170,8 @@ resource "aws_lambda_function" "add_survey" {
   runtime          = "python3.8"
   environment {
     variables = {
-      LOG_LEVEL  = "DEBUG"
-      TABLE_NAME = "survey"
+      LOG_LEVEL     = "DEBUG"
+      TABLE_NAME    = "survey"
       SQS_QUEUE_URL = aws_sqs_queue.docs-queue.id
     }
   }
@@ -190,7 +190,7 @@ resource "aws_lambda_function" "pdf-gen" {
   runtime          = "nodejs12.x"
   environment {
     variables = {
-      LOG_LEVEL = "INFO"
+      LOG_LEVEL   = "INFO"
       BUCKET_NAME = var.docs_bucket_name
     }
   }
@@ -206,7 +206,7 @@ resource "aws_lambda_function" "pdf-print" {
   runtime          = "nodejs12.x"
   environment {
     variables = {
-      LOG_LEVEL = "INFO"
+      LOG_LEVEL   = "INFO"
       BUCKET_NAME = var.docs_bucket_name
     }
   }
@@ -1348,6 +1348,20 @@ resource "aws_api_gateway_usage_plan" "api_gw_usage_plan_prod" {
 resource "aws_s3_bucket" "af-upload-docs" {
   bucket = "af-upload-docs"
   acl    = "private"
+
+  lifecycle_rule {
+    id      = "delete-autocertifications"
+    prefix  = "autocertificazioni/"
+    enabled = true
+
+    expiration {
+      days = 14
+    }
+
+    noncurrent_version_expiration {
+      days = 14
+    }
+  }
 
   tags = {
     Name = "af-upload-docs"
