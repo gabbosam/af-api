@@ -172,6 +172,7 @@ resource "aws_lambda_function" "add_survey" {
     variables = {
       LOG_LEVEL  = "DEBUG"
       TABLE_NAME = "survey"
+      SQS_QUEUE_URL = aws_sqs_queue.docs-queue.id
     }
   }
   lifecycle {
@@ -190,6 +191,23 @@ resource "aws_lambda_function" "pdf-gen" {
   environment {
     variables = {
       LOG_LEVEL = "INFO"
+      BUCKET_NAME = var.docs_bucket_name
+    }
+  }
+}
+
+resource "aws_lambda_function" "pdf-print" {
+  function_name    = "pdf-print"
+  role             = "arn:aws:iam::374237882048:role/lambda-role"
+  handler          = "app.handler"
+  filename         = "pdf-print/build/code.zip"
+  source_code_hash = filebase64sha256("pdf-print/build/code.zip")
+  timeout          = 30
+  runtime          = "nodejs12.x"
+  environment {
+    variables = {
+      LOG_LEVEL = "INFO"
+      BUCKET_NAME = var.docs_bucket_name
     }
   }
 }
@@ -205,6 +223,10 @@ resource "aws_api_gateway_rest_api" "api_gw" {
 
 resource "aws_api_gateway_api_key" "api_gw_api_key" {
   name = "client-api-key"
+}
+
+resource "aws_api_gateway_api_key" "api_gw_api_key_prod" {
+  name = "client-api-key-prod"
 }
 
 resource "aws_api_gateway_authorizer" "authorizer" {
@@ -655,46 +677,6 @@ resource "aws_api_gateway_integration" "check_out_integration" {
   ]
 }
 
-resource "aws_api_gateway_resource" "pdf-gen" {
-  rest_api_id = aws_api_gateway_rest_api.api_gw.id
-  parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
-  path_part   = "pdf-gen"
-  depends_on = [
-    aws_api_gateway_rest_api.api_gw
-  ]
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "aws_api_gateway_method" "pdf_gen_method" {
-  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
-  resource_id   = aws_api_gateway_resource.pdf-gen.id
-  http_method   = "GET"
-  authorization = "NONE"
-  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
-  api_key_required = true
-  depends_on = [
-    aws_api_gateway_resource.pdf-gen
-  ]
-}
-
-resource "aws_api_gateway_integration" "pdf_gen_integration" {
-  rest_api_id = aws_api_gateway_rest_api.api_gw.id
-  resource_id = aws_api_gateway_resource.pdf-gen.id
-  http_method = aws_api_gateway_method.pdf_gen_method.http_method
-  # integration_http_method for lambda integration MUST BE POST
-  # see: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_integration#integration_http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.pdf-gen.invoke_arn
-  content_handling        = "CONVERT_TO_TEXT"
-  depends_on = [
-    aws_api_gateway_resource.pdf-gen,
-    aws_api_gateway_method.pdf_gen_method
-  ]
-}
-
 resource "aws_api_gateway_resource" "admin" {
   rest_api_id = aws_api_gateway_rest_api.api_gw.id
   parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
@@ -711,6 +693,18 @@ resource "aws_api_gateway_resource" "add_user" {
   rest_api_id = aws_api_gateway_rest_api.api_gw.id
   parent_id   = aws_api_gateway_resource.admin.id
   path_part   = "add-user"
+  depends_on = [
+    aws_api_gateway_rest_api.api_gw
+  ]
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_api_gateway_resource" "pdf-print" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  parent_id   = aws_api_gateway_rest_api.api_gw.root_resource_id
+  path_part   = "pdf-print"
   depends_on = [
     aws_api_gateway_rest_api.api_gw
   ]
@@ -1074,20 +1068,48 @@ resource "aws_api_gateway_integration_response" "add_survey_cors_integration_res
   }
 }
 
-resource "aws_api_gateway_method" "pdf_gen_cors" {
+resource "aws_api_gateway_method" "pdf_print_method" {
   rest_api_id   = aws_api_gateway_rest_api.api_gw.id
-  resource_id   = aws_api_gateway_resource.pdf-gen.id
-  http_method   = "OPTIONS"
+  resource_id   = aws_api_gateway_resource.pdf-print.id
+  http_method   = "GET"
   authorization = "NONE"
+  #authorizer_id    = aws_api_gateway_authorizer.authorizer.id
+  api_key_required = true
   depends_on = [
-    aws_api_gateway_resource.pdf-gen
+    aws_api_gateway_resource.pdf-print
   ]
 }
 
-resource "aws_api_gateway_integration" "pdf_gen_cors_integration" {
+resource "aws_api_gateway_integration" "pdf_print_integration" {
   rest_api_id = aws_api_gateway_rest_api.api_gw.id
-  resource_id = aws_api_gateway_resource.pdf-gen.id
-  http_method = aws_api_gateway_method.pdf_gen_cors.http_method
+  resource_id = aws_api_gateway_resource.pdf-print.id
+  http_method = aws_api_gateway_method.pdf_print_method.http_method
+  # integration_http_method for lambda integration MUST BE POST
+  # see: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_integration#integration_http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.pdf-print.invoke_arn
+  content_handling        = "CONVERT_TO_TEXT"
+  depends_on = [
+    aws_api_gateway_resource.pdf-print,
+    aws_api_gateway_method.pdf_print_method
+  ]
+}
+
+resource "aws_api_gateway_method" "pdf_print_cors" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gw.id
+  resource_id   = aws_api_gateway_resource.pdf-print.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+  depends_on = [
+    aws_api_gateway_resource.pdf-print
+  ]
+}
+
+resource "aws_api_gateway_integration" "pdf_print_cors_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gw.id
+  resource_id = aws_api_gateway_resource.pdf-print.id
+  http_method = aws_api_gateway_method.pdf_print_cors.http_method
   type        = "MOCK"
   request_templates = {
     "application/json" = jsonencode(
@@ -1098,10 +1120,10 @@ resource "aws_api_gateway_integration" "pdf_gen_cors_integration" {
   }
 }
 
-resource "aws_api_gateway_method_response" "pdf_gen_cors_response" {
+resource "aws_api_gateway_method_response" "pdf_print_cors_response" {
   rest_api_id = aws_api_gateway_rest_api.api_gw.id
-  resource_id = aws_api_gateway_resource.pdf-gen.id
-  http_method = aws_api_gateway_method.pdf_gen_cors.http_method
+  resource_id = aws_api_gateway_resource.pdf-print.id
+  http_method = aws_api_gateway_method.pdf_print_cors.http_method
   status_code = "200"
   response_models = {
     "application/json" = "Empty"
@@ -1113,11 +1135,11 @@ resource "aws_api_gateway_method_response" "pdf_gen_cors_response" {
   }
 }
 
-resource "aws_api_gateway_integration_response" "pdf-gen_cors_integration_response" {
+resource "aws_api_gateway_integration_response" "pdf_print_cors_integration_response" {
   rest_api_id = aws_api_gateway_rest_api.api_gw.id
-  resource_id = aws_api_gateway_resource.pdf-gen.id
-  http_method = aws_api_gateway_method.pdf_gen_cors.http_method
-  status_code = aws_api_gateway_method_response.pdf_gen_cors_response.status_code
+  resource_id = aws_api_gateway_resource.pdf-print.id
+  http_method = aws_api_gateway_method.pdf_print_cors.http_method
+  status_code = aws_api_gateway_method_response.pdf_print_cors_response.status_code
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers" = "'Origin,Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
     "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST,GET'"
@@ -1127,7 +1149,6 @@ resource "aws_api_gateway_integration_response" "pdf-gen_cors_integration_respon
     "application/json" = ""
   }
 }
-
 
 resource "aws_lambda_permission" "login" {
   statement_id  = "AllowExecutionFromAPIGateway"
@@ -1248,6 +1269,18 @@ resource "aws_lambda_permission" "me" {
   )
 }
 
+resource "aws_lambda_permission" "pdf_print" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = "pdf-print"
+  principal     = "apigateway.amazonaws.com"
+
+  # More: http://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-control-access-using-iam-policies-to-invoke-api.html
+  source_arn = format(
+    "%s/*/GET/pdf-print",
+    aws_api_gateway_rest_api.api_gw.execution_arn
+  )
+}
 resource "aws_lambda_permission" "update_me" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
@@ -1257,19 +1290,6 @@ resource "aws_lambda_permission" "update_me" {
   # More: http://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-control-access-using-iam-policies-to-invoke-api.html
   source_arn = format(
     "%s/*/POST/update-me",
-    aws_api_gateway_rest_api.api_gw.execution_arn
-  )
-}
-
-resource "aws_lambda_permission" "pdf-gen" {
-  statement_id  = "AllowExecutionFromAPIGateway"
-  action        = "lambda:InvokeFunction"
-  function_name = "pdf-gen"
-  principal     = "apigateway.amazonaws.com"
-
-  # More: http://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-control-access-using-iam-policies-to-invoke-api.html
-  source_arn = format(
-    "%s/*/GET/pdf-gen",
     aws_api_gateway_rest_api.api_gw.execution_arn
   )
 }
@@ -1306,6 +1326,25 @@ resource "aws_api_gateway_usage_plan" "api_gw_usage_plan" {
   }
 }
 
+resource "aws_api_gateway_usage_plan" "api_gw_usage_plan_prod" {
+  name = "Prod"
+  api_stages {
+    api_id = aws_api_gateway_rest_api.api_gw.id
+    stage  = "prod"
+  }
+
+  quota_settings {
+    limit  = 2000
+    offset = 0
+    period = "MONTH"
+  }
+
+  throttle_settings {
+    burst_limit = 25
+    rate_limit  = 50
+  }
+}
+
 resource "aws_s3_bucket" "af-upload-docs" {
   bucket = "af-upload-docs"
   acl    = "private"
@@ -1313,4 +1352,13 @@ resource "aws_s3_bucket" "af-upload-docs" {
   tags = {
     Name = "af-upload-docs"
   }
+}
+
+resource "aws_sqs_queue" "docs-queue" {
+  name = "docs-queue"
+}
+
+resource "aws_lambda_event_source_mapping" "docs-gen" {
+  event_source_arn = aws_sqs_queue.docs-queue.arn
+  function_name    = aws_lambda_function.pdf-gen.arn
 }

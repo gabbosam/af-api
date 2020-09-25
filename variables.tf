@@ -3,3 +3,8 @@ variable "token_expiration" {
   description = "token expiration in minutes"
   default     = 180
 }
+
+variable "docs_bucket_name"{
+    type=string
+    default="af-upload-docs"
+}

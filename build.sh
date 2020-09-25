@@ -35,3 +35,8 @@ echo "Build pdf-gen function"
 cp pdf-gen/*.js pdf-gen/build/;
 cp -r pdf-gen/node_modules/ pdf-gen/build/node_modules/;
 cd pdf-gen/build && zip -r code.zip * && cd -
+
+echo "Build pdf-print function"
+cp pdf-print/*.js pdf-print/build/;
+cp -r pdf-print/node_modules/ pdf-print/build/node_modules/;
+cd pdf-print/build && zip -r code.zip * && cd -

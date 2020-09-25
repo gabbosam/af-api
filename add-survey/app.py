@@ -50,11 +50,18 @@ def lambda_function(event, context):
 
     update_params["login"] = jwt_token["sub"]
     update_params["dateSubmit"] = Day
+    update_params["tenant"] = jwt_token["tenant"]
+    update_params["fullname"] = jwt_token["name"]
+
 
     try:
-        with table.batch_writer() as batch:
-            # put survey data
-            batch.put_item(update_params)
+        client = boto3.client('sqs')
+        sqs_response = client.send_message(
+            QueueUrl=os.environ.get("SQS_QUEUE_URL"),
+            MessageBody=json.dumps(update_params),
+            #MessageGroupId=os.environ.get("ENV")
+        )
+        
         # update users with last submit date
         table_users.update_item(
             Key={"login": jwt_token["sub"]},
