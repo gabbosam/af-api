@@ -3,7 +3,7 @@ if [ -n "$1" ]; then
 else
     l=( "add-user" "authorizer" "check-in" "check-out" 
     "login" "logout" "refresh-token" "me"
-    "update-me", "add-survey")
+    "update-me", "add-survey", "access-cleaner")
 fi;
 
 OLDPWD="$pwd"
@@ -30,13 +30,15 @@ do
     # aws s3api put-object --bucket $bucket_name --key $s3key --body $d/$name/code.zip --profile AF
 done;
 
-# pdf-gen
-echo "Build pdf-gen function"
-cp pdf-gen/*.js pdf-gen/build/;
-cp -r pdf-gen/node_modules/ pdf-gen/build/node_modules/;
-cd pdf-gen/build && zip -r code.zip * && cd -
+if [ "$2" == "nodejs" ]; then
+    # pdf-gen
+    echo "Build pdf-gen function"
+    cp pdf-gen/*.js pdf-gen/build/;
+    cp -r pdf-gen/node_modules/ pdf-gen/build/node_modules/;
+    cd pdf-gen/build && zip -r code.zip * && cd -
 
-echo "Build pdf-print function"
-cp pdf-print/*.js pdf-print/build/;
-cp -r pdf-print/node_modules/ pdf-print/build/node_modules/;
-cd pdf-print/build && zip -r code.zip * && cd -
+    echo "Build pdf-print function"
+    cp pdf-print/*.js pdf-print/build/;
+    cp -r pdf-print/node_modules/ pdf-print/build/node_modules/;
+    cd pdf-print/build && zip -r code.zip * && cd -
+fi;

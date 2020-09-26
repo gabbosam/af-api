@@ -180,6 +180,24 @@ resource "aws_lambda_function" "add_survey" {
   }
 }
 
+resource "aws_lambda_function" "access_cleaner" {
+  function_name    = "access-cleaner"
+  role             = "arn:aws:iam::374237882048:role/lambda-role"
+  handler          = "app.lambda_function"
+  filename         = "access-cleaner/build/code.zip"
+  source_code_hash = filebase64sha256("access-cleaner/build/code.zip")
+  timeout          = 30
+  runtime          = "python3.8"
+  environment {
+    variables = {
+      LOG_LEVEL  = "DEBUG"
+      TABLE_NAME = "access"
+    }
+  }
+  lifecycle {
+    create_before_destroy = true
+  }
+}
 resource "aws_lambda_function" "pdf-gen" {
   function_name    = "pdf-gen"
   role             = "arn:aws:iam::374237882048:role/lambda-role"
@@ -1375,4 +1393,16 @@ resource "aws_sqs_queue" "docs-queue" {
 resource "aws_lambda_event_source_mapping" "docs-gen" {
   event_source_arn = aws_sqs_queue.docs-queue.arn
   function_name    = aws_lambda_function.pdf-gen.arn
+}
+
+resource "aws_cloudwatch_event_rule" "access_cleaner_rule" {
+  name                = "access_cleaner"
+  description         = "Clean access older than 14 days"
+  schedule_expression = "cron(0 1 * * ? *)"
+}
+
+resource "aws_cloudwatch_event_target" "access_cleaner_target" {
+  rule      = aws_cloudwatch_event_rule.access_cleaner_rule.name
+  target_id = "access_cleaner"
+  arn       = aws_lambda_function.access_cleaner.arn
 }
