@@ -53,13 +53,14 @@ def lambda_function(event, context):
         if not payload:
             payload = jwt.decode(token, token_key, algorithm=['HS256'], verify=False)
 
+        token_uuid = str(uuid.uuid4())
         payload["iat"] = issued_at
         payload["exp"] = exp_at
-        jwt_token = jwt.encode(payload, token_key, algorithm='HS256').decode()
+        payload["uuid"] = token_uuid
 
+        jwt_token = jwt.encode(payload, token_key, algorithm='HS256').decode()
         refresh_exp_at = issued_at + timedelta(days=5)
         exp_uuid = refresh_token["uuid"]
-        token_uuid = str(uuid.uuid4())
         refresh_token = jwt.encode(
             {
                 "sub": "af-api",
