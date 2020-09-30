@@ -48,7 +48,16 @@ def lambda_function(event, context):
         try:
             access_hash = jwt_token["access_hash"]
         except KeyError:
-            raise CheckInNotFound()
+            item = table_tokens.get_item(ConsistentRead=True, Key={"uuid": jwt_token["uuid"]})
+            if item.get('Item') is not None:
+                token = item.get('Item').get("token")
+                try:
+                    payload = jwt.decode(token, token_key, algorithm=['HS256'], verify=False)
+                    access_hash = payload["access_hash"]
+                except Exception as err:
+                    log.error(err)
+                    raise CheckInNotFound()
+
         with table.batch_writer() as batch:
             items = table.query(
                 IndexName="login-hash-index",
