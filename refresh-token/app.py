@@ -53,20 +53,20 @@ def lambda_function(event, context):
         if not payload:
             payload = jwt.decode(token, token_key, algorithm=['HS256'], verify=False)
 
-        token_uuid = str(uuid.uuid4())
+        #token_uuid = str(uuid.uuid4())
         payload["iat"] = issued_at
         payload["exp"] = exp_at
-        payload["uuid"] = token_uuid
+        #payload["uuid"] = token_uuid
 
         jwt_token = jwt.encode(payload, token_key, algorithm='HS256').decode()
         refresh_exp_at = issued_at + timedelta(days=5)
-        exp_uuid = refresh_token["uuid"]
+        refresh_uuid = refresh_token["uuid"]
         refresh_token = jwt.encode(
             {
                 "sub": "af-api",
                 "iat": issued_at.timestamp(),
                 "exp": refresh_exp_at.timestamp(),
-                "uuid": token_uuid
+                "uuid": refresh_uuid
             }, 
             token_key, algorithm='HS256'
         ).decode()
@@ -74,15 +74,15 @@ def lambda_function(event, context):
         with table_tokens.batch_writer() as batch:
             batch.put_item(
                 {
-                    "uuid": token_uuid,
+                    "uuid": refresh_uuid,
                     "token": jwt_token
                 }
             )
-            batch.delete_item(
-                Key = {
-                    "uuid": exp_uuid
-                }
-            )
+            # batch.delete_item(
+            #     Key = {
+            #         "uuid": exp_uuid
+            #     }
+            # )
         
     else:
         return {
