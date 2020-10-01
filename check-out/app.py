@@ -77,9 +77,12 @@ def lambda_function(event, context):
                     "checkoutDate": date,
                     "checkoutTime": Time,
                     "tenant": jwt_token.get("tenant", "default"),
-                    "uuid": jwt_token["uuid"]
+                    "uuid": jwt_token["uuid"],
+
+                    
                 })
                 
+                jwt_token["last_checkout"] = "{} {}".format(date_tz.strftime("%d/%m/%Y"), Time)
                 del jwt_token["access_hash"]
                 token = jwt.encode(jwt_token, token_key, algorithm='HS256').decode()
 

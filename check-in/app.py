@@ -79,6 +79,7 @@ def lambda_function(event, context):
                 "uuid": jwt_token["uuid"]
             })
             jwt_token["access_hash"] = access_hash
+            jwt_token["last_checkin"] = "{} {}".format(date_tz.strftime("%d/%m/%Y"), Time)
             token = jwt.encode(jwt_token, token_key, algorithm='HS256').decode()
 
         with table_tokens.batch_writer() as batch:
