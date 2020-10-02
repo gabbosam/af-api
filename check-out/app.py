@@ -7,7 +7,7 @@ import logging
 import base64
 import hashlib
 import boto3
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Key, Attr
 import jwt
 
 # Static code used for DynamoDB connection and logging
@@ -44,28 +44,32 @@ def lambda_function(event, context):
     Day = date.split("T")[0]
     Time = date_tz.strftime("%H:%M:%S")
 
+    items = []
+
     try:
-        try:
-            access_hash = jwt_token["access_hash"]
-        except KeyError:
+        access_hash = params.get("access_hash")
+        if not access_hash:
             item = table_tokens.get_item(ConsistentRead=True, Key={"uuid": jwt_token["uuid"]})
             if item.get('Item') is not None:
                 token = item.get('Item').get("token")
                 try:
                     payload = jwt.decode(token, token_key, algorithm=['HS256'], verify=False)
                     access_hash = payload["access_hash"]
+                    items = table.query(
+                        IndexName="login-hash-index",
+                        KeyConditionExpression=(Key("login").eq(jwt_token["sub"]) & Key("hash").eq(access_hash))
+                    )
                 except Exception as err:
                     log.error(err)
                     raise CheckInNotFound()
+        if not items:
+            items = table.scan(
+                FilterExpression = Attr('login').eq(jwt_token["sub"]) & Attr("checkinDay").eq(Day) & Attr("checkoutDay").eq("")
+            )
+                
 
         with table.batch_writer() as batch:
-            items = table.query(
-                IndexName="login-hash-index",
-                KeyConditionExpression=(Key("login").eq(jwt_token["sub"]) & Key("hash").eq(access_hash))
-            )
-            
-            item = items.get("Items",[]) and items.get("Items")[0]
-            if item:
+            for item in items.get("Items",[]):
                 batch.put_item({
                     "login": jwt_token["sub"],
                     "name": jwt_token["name"],
@@ -77,9 +81,7 @@ def lambda_function(event, context):
                     "checkoutDate": date,
                     "checkoutTime": Time,
                     "tenant": jwt_token.get("tenant", "default"),
-                    "uuid": jwt_token["uuid"],
-
-                    
+                    "uuid": item["uuid"],
                 })
                 
                 jwt_token["last_checkout"] = "{} {}".format(date_tz.strftime("%d/%m/%Y"), Time)
